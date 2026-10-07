@@ -1,5 +1,5 @@
   public MainForm() {
-   Text="블로거 서쳐";Size=new Size(1320,820);MinimumSize=new Size(1130,740);StartPosition=FormStartPosition.CenterScreen;
+   Text="블로거 서쳐";Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath);Size=new Size(1320,820);MinimumSize=new Size(1130,740);StartPosition=FormStartPosition.CenterScreen;
    Font=new Font("맑은 고딕",9);BackColor=Surface;ForeColor=Ink;AutoScaleMode=AutoScaleMode.Dpi;
    var shell=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
    shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,180));shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));Controls.Add(shell);

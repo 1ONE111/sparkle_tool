@@ -192,8 +192,10 @@ namespace BlogSearcher {
   }
  }
  public class BrandMark:Control {
-  public BrandMark(){Size=new Size(28,30);}
-  protected override void OnPaint(PaintEventArgs e){e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;using(var b=new SolidBrush(Color.FromArgb(255,104,26)))for(int i=0;i<3;i++){int x=3+i*4,y=23-i*8;e.Graphics.FillPolygon(b,new[]{new Point(x,y),new Point(x+13,y),new Point(x+19,y-6),new Point(x+6,y-6)});}}
+  Image mark;
+  public BrandMark(){Size=new Size(30,30);using(var stream=typeof(BrandMark).Assembly.GetManifestResourceStream("BlogSearcher.Brand.png"))using(var source=Image.FromStream(stream))mark=new Bitmap(source);}
+  protected override void OnPaint(PaintEventArgs e){e.Graphics.InterpolationMode=InterpolationMode.HighQualityBicubic;e.Graphics.DrawImage(mark,ClientRectangle);}
+  protected override void Dispose(bool disposing){if(disposing&&mark!=null){mark.Dispose();mark=null;}base.Dispose(disposing);}
  }
  public class MainForm:Form {
   TextBox refs=new TextBox(),keywords=new TextBox(),logs=new TextBox(),apiId=new TextBox(),apiSecret=new TextBox();
@@ -223,7 +225,7 @@ namespace BlogSearcher {
    using(var bmp=new Bitmap(Width,Height)){DrawToBitmap(bmp,new Rectangle(0,0,Width,Height));bmp.Save(path,System.Drawing.Imaging.ImageFormat.Png);}Close();
   }
   public MainForm() {
-   Text="블로거 서쳐";Size=new Size(1320,820);MinimumSize=new Size(1130,740);StartPosition=FormStartPosition.CenterScreen;
+   Text="블로거 서쳐";Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath);Size=new Size(1320,820);MinimumSize=new Size(1130,740);StartPosition=FormStartPosition.CenterScreen;
    Font=new Font("맑은 고딕",9);BackColor=Surface;ForeColor=Ink;AutoScaleMode=AutoScaleMode.Dpi;
    var shell=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
    shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,180));shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));Controls.Add(shell);
