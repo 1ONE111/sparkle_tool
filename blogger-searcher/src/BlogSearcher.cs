@@ -207,6 +207,19 @@ namespace BlogSearcher {
   Label Caption(string text,int size=9,bool bold=false){return new Label{Text=text,AutoSize=true,ForeColor=Ink,Font=new Font("맑은 고딕",size,bold?FontStyle.Bold:FontStyle.Regular),Margin=new Padding(0,6,0,4)};}
   Button Small(string text,Action action){var b=new SoftButton{Text=text,AutoSize=true,Padding=new Padding(9,0,9,0),Margin=new Padding(0,2,8,2)};b.Click+=(s,e)=>action();return b;}
   void UpdateCounts(){refCount.Text=Engine.ParseUrls(refs.Text).Count+"개";resultCount.Text="총 "+grid.Rows.Count+"명";selectionCount.Text="선택 "+grid.Rows.Cast<DataGridViewRow>().Count(r=>Convert.ToBoolean(r.Cells[0].Value??false))+"명";}
+  void Help(){using(var d=CreateHelp())d.ShowDialog(this);}
+  public static Form CreateHelp(){
+   var d=new Form{Text="사용 방법 · 크롤러 연계",ClientSize=new Size(580,490),StartPosition=FormStartPosition.CenterParent,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false,Font=new Font("맑은 고딕",9),BackColor=Surface,ForeColor=Ink,AutoScaleMode=AutoScaleMode.Dpi};
+   var layout=new TableLayoutPanel{Dock=DockStyle.Fill,Padding=new Padding(24),ColumnCount=1,RowCount=6};d.Controls.Add(layout);
+   foreach(int h in new[]{42,27,116,27,170,42})layout.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
+   layout.Controls.Add(new Label{Text="찾고 → TXT 저장 → 크롤러로 불러오기",Dock=DockStyle.Fill,Font=new Font("맑은 고딕",14,FontStyle.Bold)},0,0);
+   layout.Controls.Add(new Label{Text="1. 블로거 서쳐에서 후보 찾기",Dock=DockStyle.Fill,ForeColor=Orange,Font=new Font("맑은 고딕",10,FontStyle.Bold)},0,1);
+   layout.Controls.Add(new Label{Text="① 레퍼런스 블로그 주소 1~10개를 붙여 넣거나 TXT를 불러옵니다.\n② 추가 키워드는 쉼표로 구분합니다. 비워두면 자동으로 찾습니다.\n③ 기존 컨택 TXT를 넣으면 해당 블로그는 후보에서 제외됩니다.\n④ '후보 찾기' → 블로그를 더블클릭해 확인 → 원하는 후보 체크.",Dock=DockStyle.Fill},0,2);
+   layout.Controls.Add(new Label{Text="2. 네이버 크롤러에서 지표를 엑셀로 저장",Dock=DockStyle.Fill,ForeColor=Orange,Font=new Font("맑은 고딕",10,FontStyle.Bold)},0,3);
+   layout.Controls.Add(new Label{Text="① 서쳐의 'TXT 저장'으로 선택한 블로그 주소를 저장합니다.\n② 네이버 크롤러를 실행하고 왼쪽 '블로그 정보'를 선택합니다.\n③ '파일 불러오기'에서 방금 저장한 TXT를 선택합니다.\n④ '수집 시작'으로 닉네임·방문자·이웃수 등을 조회한 뒤\n    '엑셀 저장'을 누릅니다.\n\nTXT에는 주소만 한 줄씩 들어갑니다. 두 앱은 TXT 파일로 연결되며,\n크롤러는 별도로 실행합니다. 인터넷 연결이 필요합니다.",Dock=DockStyle.Fill},0,4);
+   var close=new SoftButton{Text="확인",Size=new Size(82,34),Anchor=AnchorStyles.Right|AnchorStyles.Top,BackColor=Ink,ForeColor=Color.White,DialogResult=DialogResult.OK};layout.Controls.Add(close,0,5);d.AcceptButton=close;d.CancelButton=close;return d;
+  }
+  public static void SaveHelpPreview(string path){using(var d=CreateHelp()){d.ShowInTaskbar=false;d.Opacity=0;d.Show();Application.DoEvents();using(var bmp=new Bitmap(d.Width,d.Height)){d.DrawToBitmap(bmp,new Rectangle(0,0,d.Width,d.Height));bmp.Save(path,System.Drawing.Imaging.ImageFormat.Png);}d.Close();}}
   void Settings(){using(var d=new Form{Text="검색 설정",Size=new Size(440,300),StartPosition=FormStartPosition.CenterParent,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false,Font=Font,BackColor=Color.White}){
    var layout=new FlowLayoutPanel{Dock=DockStyle.Fill,Padding=new Padding(22),FlowDirection=FlowDirection.TopDown,WrapContents=false};d.Controls.Add(layout);
    layout.Controls.Add(Caption("기본 웹 검색 · API 연결은 선택입니다",10,true));
@@ -236,7 +249,7 @@ namespace BlogSearcher {
    sidebar.Controls.Add(new Label{Text="블로그",Location=new Point(22,101),AutoSize=true,ForeColor=Muted});
    var active=Small("블로거 탐색",()=>refs.Focus());active.Location=new Point(12,128);active.Size=new Size(156,40);active.AutoSize=false;active.BackColor=Ink;active.ForeColor=Color.White;sidebar.Controls.Add(active);
    var saveNav=Small("TXT 내보내기",()=>Export());saveNav.Location=new Point(12,175);saveNav.Size=new Size(156,38);saveNav.AutoSize=false;saveNav.BackColor=Color.White;sidebar.Controls.Add(saveNav);
-   var companion=new Panel{Height=78,Dock=DockStyle.Bottom,Padding=new Padding(18),BackColor=Surface};companion.Controls.Add(new Label{Text="네이버 크롤러 연계\n주소만 한 줄씩 TXT 저장",Dock=DockStyle.Fill,ForeColor=Muted});sidebar.Controls.Add(companion);
+   var companion=new Panel{Height=104,Dock=DockStyle.Bottom,Padding=new Padding(18),BackColor=Surface};var helpLink=new LinkLabel{Text="사용 방법 · 크롤러 연계",Dock=DockStyle.Top,Height=27,LinkColor=Orange,ActiveLinkColor=Ink,VisitedLinkColor=Orange,Font=new Font("맑은 고딕",8,FontStyle.Bold)};helpLink.LinkClicked+=(s,e)=>Help();companion.Controls.Add(new Label{Text="주소만 한 줄씩 TXT 저장\n크롤러에서 파일 불러오기",Dock=DockStyle.Fill,ForeColor=Muted,Font=new Font("맑은 고딕",8)});companion.Controls.Add(helpLink);sidebar.Controls.Add(companion);
    var main=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,Padding=new Padding(24,18,24,6),Margin=Padding.Empty};
    main.RowStyles.Add(new RowStyle(SizeType.Absolute,74));main.RowStyles.Add(new RowStyle(SizeType.Percent,100));main.RowStyles.Add(new RowStyle(SizeType.Absolute,0));main.RowStyles.Add(new RowStyle(SizeType.Absolute,30));shell.Controls.Add(main,1,0);
    var header=new Panel{Dock=DockStyle.Fill};header.Controls.Add(new Label{Text="블로거 탐색",Location=new Point(0,1),AutoSize=true,Font=new Font("맑은 고딕",19,FontStyle.Bold)});
@@ -331,6 +344,7 @@ namespace BlogSearcher {
    if(args.Length>=2&&args[0]=="--self-test"){Tests(args[1],false);return;}
    if(args.Length>=2&&args[0]=="--live-test"){Tests(args[1],true);return;}
    if(args.Length>=2&&args[0]=="--preview"){using(var f=new MainForm()){f.SavePreview(args[1]);}return;}
+   if(args.Length>=2&&args[0]=="--help-preview"){MainForm.SaveHelpPreview(args[1]);return;}
    if(args.Length>=2&&args[0]=="--pipeline-test") {
     try {
      using(var writer=new StreamWriter(args[1],false,new UTF8Encoding(true))) {
