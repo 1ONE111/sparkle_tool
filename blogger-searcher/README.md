@@ -48,4 +48,6 @@ Get-Content .\tests\self-test.txt
 
 `src/BlogSearcher.cs`에 앱과 검증 코드가 있습니다. `src/UiConstructor.txt`는 화면 생성 코드 원본이며, 화면을 편집한 뒤 `python src/apply_layout.py`를 실행하면 C# 생성자에 반영됩니다. Python은 화면 개발 보조 작업에만 사용하며 일반 실행·빌드에는 필요하지 않습니다.
 
+로고는 검정 바탕 위 주황색 B와 돋보기입니다. `assets/app.png`는 앱 내부 로고, `assets/app.ico`는 EXE·창 아이콘이며 빌드 시 함께 포함됩니다. `src/make_brand.py`로 재생성할 수 있습니다(Pillow 필요). EXE가 실행 중이면 앱을 닫고 빌드하거나 `build.ps1 -OutputName 다른이름.exe`로 다른 파일에 빌드합니다.
+
 기존 크롤러는 저장소 루트에서 별도로 유지됩니다. 이 앱의 소스와 실행 파일은 이 폴더에서 관리합니다.
