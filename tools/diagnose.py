@@ -68,6 +68,19 @@ def show(session: requests.Session, name: str, url: str, referer: str | None = N
     return body
 
 
+def show_dates(name: str, body: str) -> None:
+    """작성일이 들어 있을 만한 곳 (태그 포함 앞뒤 글자)."""
+    rx = r'(?:publishDate|blog_date|se_date|_postAddDate|addDate|"date")'
+    found = 0
+    for m in re.finditer(rx, body):
+        print(f"      [{name} 작성일] " + re.sub(r"\s+", " ", body[max(0, m.start() - 60):m.end() + 240]))
+        found += 1
+        if found >= 4:
+            break
+    for m in list(re.finditer(r"20\d\d\.\s?\d{1,2}\.\s?\d{1,2}\.?\s?\d{1,2}:\d{2}", body))[:3]:
+        print(f"      [{name} 날짜형식] " + re.sub(r"\s+", " ", body[max(0, m.start() - 120):m.end() + 20]))
+
+
 def diagnose_posts(s: requests.Session, urls: list[str]) -> None:
     print("=== 포스팅: 크롬 없이 요청 ===")
     for url in urls:
@@ -75,8 +88,10 @@ def diagnose_posts(s: requests.Session, urls: list[str]) -> None:
         bid, no = ref.blog_id, ref.log_no
         print(f"- {bid}/{no}")
         post_view = f"https://blog.naver.com/PostView.naver?blogId={bid}&logNo={no}"
-        show(s, "pc_postview", post_view, f"https://blog.naver.com/{bid}", POST_PATTERNS)
-        show(s, "m_post", f"https://m.blog.naver.com/{bid}/{no}", None, POST_PATTERNS)
+        pc = show(s, "pc_postview", post_view, f"https://blog.naver.com/{bid}", POST_PATTERNS)
+        show_dates("pc_postview", pc)
+        mobile = show(s, "m_post", f"https://m.blog.naver.com/{bid}/{no}", None, POST_PATTERNS)
+        show_dates("m_post", mobile)
         show(s, "like_api", f"https://blog.like.naver.com/v1/search/contents?suppress_response_codes=true"
              f"&q=BLOG%5B{bid}_{no}%5D&isDuplication=true", post_view, raw=True)
         info = load_json_loose(show(s, "rego", f"https://m.blog.naver.com/rego/BlogInfo.naver?blogId={bid}",
