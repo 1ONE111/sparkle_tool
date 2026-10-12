@@ -162,8 +162,9 @@ def run_posts(responses, urls):
 
 
 def test_post_fast_likes_from_api_and_comments_from_mobile_page():
+    # 실제 모바일 글 구조: <p class="blog_date"> <span class="txt">날짜</span> </p>
     m_html = ('<meta property="og:title" content="아이폰18 자급제 &amp; 요금제"/>'
-              '<div class="blog_date">2026. 10. 2. 14:00</div><a commentCount="3">댓글</a>')
+              '<p class="blog_date"> <span class="txt">2026. 10. 2. 14:00</span> </p><a commentCount="3">댓글</a>')
     eng, (res,) = run_posts({
         LIKE: likes_json("smy2166_224429363630", 11),
         M_POST + "smy2166/224429363630": m_html,
@@ -212,3 +213,23 @@ def test_post_fast_comment_api_fallback():
 def test_post_without_log_no_fails_cleanly():
     _eng, (res,) = run_posts({}, ["https://blog.naver.com/onlyblog"])
     assert res.status == "실패" and "글 번호" in res.message
+
+
+def test_post_date_formats():
+    from naver_crawler.crawlers import _post_date_from_html
+
+    assert _post_date_from_html('<span class="se_publishDate pcol2">2026. 10. 2. 14:00</span>') == "2026. 10. 2. 14:00"
+    # 최근 글은 '3시간 전' 으로 보여서 작성 시각(addDate, 밀리초)으로 만든다
+    relative = '<p class="blog_date"> <span class="txt">3시간 전</span> </p> addDate="1790917258641"'
+    assert _post_date_from_html(relative) == "2026. 10. 2. 14:00"
+    # 다른 글 목록의 날짜(class="date")는 쓰지 않는다
+    assert _post_date_from_html('<span class="date pcol2">2026. 10. 6.</span>') is None
+
+
+def test_post_fast_reads_pc_page_when_mobile_has_no_date():
+    _eng, (res,) = run_posts({
+        LIKE: likes_json("d_4", 2),
+        M_POST + "d/4": '<meta property="og:title" content="t"/><a commentCount="1">',
+        "https://blog.naver.com/PostView.naver?blogId=d&logNo=4": '<span class="se_publishDate pcol2">2026. 9. 1. 8:05</span>',
+    }, ["https://blog.naver.com/d/4"])
+    assert res.values["date"] == "2026. 9. 1. 8:05" and res.values["comments"] == 1

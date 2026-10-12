@@ -632,9 +632,12 @@ _M_COMMENT = re.compile(r'commentCount="(\d+)"')                          # 모�
 _PC_COMMENT = re.compile(r'id="commentCount"[^>]*>\s*([\d,]*)\s*<')      # PC 글: <em id="commentCount"> 3 </em>
 _OG_TITLE = re.compile(r'<meta\s+property="og:title"\s+content="([^"]*)"')
 _DATE_RES = [
-    re.compile(r'class="[^"]*se_publishDate[^"]*"[^>]*>\s*([^<]+?)\s*<'),
-    re.compile(r'class="[^"]*blog_date[^"]*"[^>]*>\s*([^<]+?)\s*<'),
+    re.compile(r'class="[^"]*se_publishDate[^"]*"[^>]*>\s*([^<]+?)\s*<'),                  # PC 글
+    re.compile(r'class="[^"]*blog_date[^"]*"[^>]*>\s*(?:<span[^>]*>\s*)?([^<]+?)\s*<'),    # 모바일 글
 ]
+_ABS_DATE = re.compile(r"\d{4}\.\s*\d{1,2}\.\s*\d{1,2}")
+_ADD_DATE = re.compile(r'addDate="(\d{12,13})"')  # 모바일 글: 작성 시각 (밀리초)
+KST = dt.timezone(dt.timedelta(hours=9))
 
 
 def _like_count_from(data: Any, cid: str | None) -> int | None:
@@ -666,10 +669,15 @@ def _post_title_from_html(html: str) -> str | None:
 
 
 def _post_date_from_html(html: str) -> str | None:
+    """'2026. 10. 2. 14:00' 형식. 화면 글자가 '3시간 전' 이면 작성 시각(addDate)으로 만든다."""
     for rx in _DATE_RES:
         m = rx.search(html)
-        if m and re.search(r"\d", m.group(1)):
-            return unescape(m.group(1))
+        if m and _ABS_DATE.search(m.group(1)):
+            return unescape(m.group(1)).strip()
+    m = _ADD_DATE.search(html)
+    if m:
+        t = dt.datetime.fromtimestamp(int(m.group(1)) / 1000, KST)
+        return f"{t.year}. {t.month}. {t.day}. {t.hour}:{t.minute:02d}"
     return None
 
 
@@ -708,7 +716,7 @@ def crawl_blog_post_fast(ctx: Context, url: str) -> RowResult:
     }
     for page_url in (f"https://m.blog.naver.com/{blog_id}/{log_no}",
                      f"https://blog.naver.com/PostView.naver?blogId={blog_id}&logNo={log_no}"):
-        if values["comments"] is not None and values["title"]:
+        if values["comments"] is not None and values["title"] and values["date"]:
             break
         status, html = ctx.api_fetch(page_url, f"https://blog.naver.com/{blog_id}")
         if status != 200 or not html:
