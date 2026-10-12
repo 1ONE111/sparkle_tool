@@ -35,6 +35,9 @@ POST_PATTERNS = [
     r'class="[^"]*(?:u_cnt|_count|_commentCount|btn_comment|area_sympathy|u_likeit)[^"]*"[^>]{0,80}>[^<]{0,30}',
     r'.{0,40}(?:공감|댓글)\s*<?[^>]{0,40}>?\s*\d[\d,]*.{0,20}',
     r'(?:sympathy|commentCount|replyCount)[A-Za-z]*\s*[=:]\s*["\']?\d+',
+    # 작성일
+    r'class="[^"]*(?:publishDate|blog_date|se_date|_postAddDate|date)[^"]*"[^>]{0,80}>[^<]{0,40}',
+    r'"(?:addDate|publishDate|writeDate|postDate|logDate|addTimestamp)"\s*:\s*"?[^,"}]{0,40}',
 ]
 
 
