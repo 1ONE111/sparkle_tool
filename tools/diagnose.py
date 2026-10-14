@@ -6,6 +6,7 @@
 2) 실제 크롤러로 블로그 정보 / 블로그 포스팅을 수집한 결과
 """
 
+import json
 import re
 import sys
 import threading
@@ -190,6 +191,11 @@ def diagnose_cafe(s: requests.Session, urls: list[str]) -> None:
                 found = find_key(resp.data, ["commentCount"])
                 if found is not None:
                     print(f"      [응답] commentCount={found} <- {resp.url[:140]}")
+                if "like" in resp.url.lower():
+                    print(f"      [좋아요 응답] {resp.url[:160]}")
+                    print("         " + json.dumps(resp.data, ensure_ascii=False)[:500])
+            for line in page.driver.execute_script(_JS_DUMP, sel["likes"] + [".like_article"]) or []:
+                print(f"      · {line}")
     finally:
         engine.shutdown()
 
