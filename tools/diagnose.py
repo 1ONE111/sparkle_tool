@@ -22,10 +22,12 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from naver_crawler.config import Settings  # noqa: E402
-from naver_crawler.crawlers import TASK_BY_ID, Context  # noqa: E402
+from naver_crawler.crawlers import TASK_BY_ID, Context, extract_read_counts, resolve_club_id  # noqa: E402
 from naver_crawler.engine import Engine  # noqa: E402
 from naver_crawler.http import DEFAULT_UA  # noqa: E402
-from naver_crawler.parsing import find_key, load_json_loose, parse_blog_url, parse_cafe_url  # noqa: E402
+from naver_crawler.parsing import (  # noqa: E402
+    find_key, load_json_loose, parse_blog_url, parse_cafe_url, walk_dicts,
+)
 from naver_crawler.selectors import load_selectors  # noqa: E402
 
 PATTERNS = [
@@ -220,6 +222,75 @@ def crawl(task_id: str, urls: list[str]) -> None:
         print(f"- {url}: {r.status if r else '-'} {r.values if r else ''} {r.message if r else ''}")
 
 
+def inspect_cafe_main(s: requests.Session, urls: list[str]) -> None:
+    """카페 정보(회원수 칸 · memberCount 응답)와 평균 조회수용 목록 API 응답."""
+    print("\n=== 카페 메인: 회원수 위치 · 목록 API ===")
+    settings = Settings(headless=True, keep_login=False, request_delay=0.5, page_timeout=15)
+    engine = Engine(settings, lambda msg: None)
+    sel = load_selectors()
+    ctx = Context(engine.browser, engine.http, settings, sel, threading.Event(), lambda m: None)
+    try:
+        for url in urls:
+            print(f"- {url}")
+            page = ctx.page()
+            page.open(url, [])
+            time.sleep(4)
+            page.enter_frame()
+            print(f"      현재 주소: {page.driver.current_url}")
+            for line in page.driver.execute_script(_JS_DUMP, sel["cafe_info"]["members"]) or []:
+                print(f"      · {line}")
+            for m in list(re.finditer(r".{0,30}(?:멤버|회원|비공개).{0,30}", page.body_text()))[:8]:
+                print(f"      [본문] {m.group(0)!r}")
+            for resp in page.captured_json():
+                for d in walk_dicts(resp.data):
+                    if "memberCount" in d:
+                        keys = {k: v for k, v in d.items() if not isinstance(v, (dict, list))}
+                        print(f"      [응답] {resp.url[:120]}")
+                        print("         " + json.dumps(keys, ensure_ascii=False)[:600])
+                        break
+            club_id = resolve_club_id(ctx, parse_cafe_url(url), page)
+            if not club_id:
+                continue
+            for name, api in (
+                ("list_v2.1", f"https://apis.naver.com/cafe-web/cafe2/ArticleListV2dot1.json?search.clubid={club_id}"
+                              "&search.queryType=lastArticle&search.page=10&search.perPage=15&search.boardtype=L&ad=false"),
+                ("boardlist", f"https://apis.naver.com/cafe-web/cafe-boardlist-api/v1/cafes/{club_id}/menus/0/articles"
+                              "?page=10&pageSize=15&sortBy=TIME&viewType=L"),
+            ):
+                data = load_json_loose(show(s, name, api, f"https://cafe.naver.com/f-e/cafes/{club_id}/menus/0", raw=True))
+                print(f"      [{name} 조회수] {extract_read_counts(data) if data is not None else None}")
+                first = next((d for d in walk_dicts(data) if "readCount" in d), None) if data is not None else None
+                if first:
+                    print("      [첫 글] " + json.dumps({k: v for k, v in first.items() if not isinstance(v, (dict, list))},
+                                                     ensure_ascii=False)[:600])
+    finally:
+        engine.shutdown()
+
+
+def inspect_kin(urls: list[str]) -> None:
+    """지식iN 제목 · 조회수 선택자가 화면에서 무엇을 잡는지, 조회수가 보이기까지 걸린 시간."""
+    print("\n=== 지식iN: 화면 선택자 ===")
+    settings = Settings(headless=True, keep_login=False, request_delay=0.5, page_timeout=15)
+    engine = Engine(settings, lambda msg: None)
+    sel = load_selectors()["kin"]
+    ctx = Context(engine.browser, engine.http, settings, load_selectors(), threading.Event(), lambda m: None)
+    try:
+        for url in urls:
+            print(f"- {url}")
+            page = ctx.page()
+            started = time.monotonic()
+            page.open(url, [])
+            found = page.wait_until(lambda: page.text(sel["views"], need_digit=True, contains=["조회"]) is not None,
+                                    timeout=15)
+            print(f"      조회수 선택자 {'찾음' if found else '못 찾음'} ({time.monotonic() - started:.1f}초)")
+            for line in page.driver.execute_script(_JS_DUMP, sel["title"] + sel["views"]) or []:
+                print(f"      · {line}")
+            for m in list(re.finditer(r".{0,40}조회.{0,30}", page.body_text()))[:5]:
+                print(f"      [본문] {m.group(0)!r}")
+    finally:
+        engine.shutdown()
+
+
 def sample_kin_urls(s: requests.Session, count: int = 3) -> list[str]:
     """지식iN 목록에서 질문 주소 몇 개 (인자로 'kin' 만 넣었을 때)."""
     for page in ("https://kin.naver.com/qna/list.naver", "https://kin.naver.com/"):
@@ -253,8 +324,10 @@ def main(args: list[str]) -> None:
     if cafe_mains:
         crawl("cafe_info", cafe_mains)
         crawl("cafe_avg", cafe_mains)
+        inspect_cafe_main(s, cafe_mains)
     if kins:
         crawl("kin", kins)
+        inspect_kin(kins)
     if cafes:
         diagnose_cafe(s, cafes)
     if posts:
