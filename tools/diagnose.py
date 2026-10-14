@@ -267,6 +267,24 @@ def inspect_cafe_main(s: requests.Session, urls: list[str]) -> None:
         engine.shutdown()
 
 
+# 지식iN 제목 칸 전체 · '조회' 글자가 든 요소의 부모 (svg 는 줄여서)
+_JS_KIN_DOM = r"""
+const out = [];
+const clean = (el, n) => el.outerHTML.replace(/<svg[\s\S]*?<\/svg>/g, '<svg/>').replace(/\s+/g, ' ').slice(0, n);
+const t = document.querySelector('.endTitleSection');
+if (t) out.push('[제목 DOM] ' + clean(t.parentElement || t, 1500));
+const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+let n, i = 0;
+while ((n = w.nextNode()) && i < 3) {
+  if (!n.textContent.includes('조회')) continue;
+  const p = n.parentElement.parentElement || n.parentElement;
+  out.push('[조회 DOM] ' + clean(p, 900));
+  i++;
+}
+return out;
+"""
+
+
 def inspect_kin(urls: list[str]) -> None:
     """지식iN 제목 · 조회수 선택자가 화면에서 무엇을 잡는지, 조회수가 보이기까지 걸린 시간."""
     print("\n=== 지식iN: 화면 선택자 ===")
@@ -287,6 +305,8 @@ def inspect_kin(urls: list[str]) -> None:
                 print(f"      · {line}")
             for m in list(re.finditer(r".{0,40}조회.{0,30}", page.body_text()))[:5]:
                 print(f"      [본문] {m.group(0)!r}")
+            for line in page.driver.execute_script(_JS_KIN_DOM) or []:
+                print(f"      {line}")
     finally:
         engine.shutdown()
 
