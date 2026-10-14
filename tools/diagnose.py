@@ -4,10 +4,14 @@
 
 1) 크롬 없이 요청했을 때 각 주소가 무엇을 돌려주는지 (상태 코드, 핵심 키 주변 글자)
 2) 실제 크롤러로 블로그 정보 / 블로그 포스팅을 수집한 결과
+
+카페 메인 주소는 카페 정보 · 평균 조회수, 지식iN 주소는 지식iN 결과만 출력한다.
+'kin' 만 넣으면 지식iN 목록에서 질문 주소 몇 개를 골라 수집한다.
 """
 
 import json
 import re
+from html import unescape
 import sys
 import threading
 import time
@@ -200,12 +204,57 @@ def diagnose_cafe(s: requests.Session, urls: list[str]) -> None:
         engine.shutdown()
 
 
+def crawl(task_id: str, urls: list[str]) -> None:
+    """크롤러 결과만 한 줄씩 (창 없는 크롬, 로그인 안 함)."""
+    print(f"\n=== {TASK_BY_ID[task_id].title}: 크롤러 ===")
+    settings = Settings(headless=True, keep_login=False, request_delay=0.5, page_timeout=15, save_debug_html=True)
+    engine = Engine(settings, lambda msg: print(f"  log: {msg}"))
+    results = {}
+    try:
+        engine.run(TASK_BY_ID[task_id], list(enumerate(urls)), threading.Event(),
+                   on_result=lambda k, r: results.__setitem__(k, r))
+    finally:
+        engine.shutdown()
+    for i, url in enumerate(urls):
+        r = results.get(i)
+        print(f"- {url}: {r.status if r else '-'} {r.values if r else ''} {r.message if r else ''}")
+
+
+def sample_kin_urls(s: requests.Session, count: int = 3) -> list[str]:
+    """지식iN 목록에서 질문 주소 몇 개 (인자로 'kin' 만 넣었을 때)."""
+    for page in ("https://kin.naver.com/qna/list.naver", "https://kin.naver.com/"):
+        try:
+            html = s.get(page, timeout=15).text
+        except requests.RequestException:
+            continue
+        found = []
+        for m in re.finditer(r"/qna/detail\.naver\?[^\"'\s<>]*?docId=\d+", html):
+            url = "https://kin.naver.com" + unescape(m.group(0))
+            if url not in found:
+                found.append(url)
+        if found:
+            return found[:count]
+    print("  지식iN 목록에서 질문 주소를 찾지 못했습니다")
+    return []
+
+
 def main(args: list[str]) -> None:
     s = requests.Session()
     s.headers.update({"User-Agent": DEFAULT_UA, "Accept-Language": "ko-KR,ko;q=0.9"})
-    cafes = [a for a in args if "cafe.naver.com" in a]
-    posts = [a for a in args if a.startswith("http") and a not in cafes]
+    kins = [a for a in args if "kin.naver.com" in a]
+    if "kin" in args:
+        kins += sample_kin_urls(s)
+    args = [a for a in args if a != "kin" and "kin.naver.com" not in a]
+    cafe_urls = [a for a in args if "cafe.naver.com" in a]
+    cafes = [a for a in cafe_urls if parse_cafe_url(a).article_id]
+    cafe_mains = [a for a in cafe_urls if a not in cafes]
+    posts = [a for a in args if a.startswith("http") and a not in cafe_urls]
     ids = [a for a in args if not a.startswith("http")]
+    if cafe_mains:
+        crawl("cafe_info", cafe_mains)
+        crawl("cafe_avg", cafe_mains)
+    if kins:
+        crawl("kin", kins)
     if cafes:
         diagnose_cafe(s, cafes)
     if posts:
