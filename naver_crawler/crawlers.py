@@ -308,6 +308,18 @@ def crawl_cafe_info(ctx: Context, url: str) -> RowResult:
 # ================================================================ 2. 카페 게시글
 
 
+def _cafe_like_count(data: Any, article_id: str) -> int | None:
+    """네이버 좋아요 응답(route-like.naver.com)에서 이 글의 좋아요 수. 댓글 좋아요(CAFE-COMMENT)는 건너뛴다."""
+    for d in walk_dicts(data):
+        reactions = d.get("reactions")
+        if d.get("serviceId") != "CAFE" or not isinstance(reactions, list):
+            continue
+        if not str(d.get("contentsId", "")).endswith(f"_{article_id}"):
+            continue
+        return sum(parse_count(r.get("count")) or 0 for r in reactions if isinstance(r, dict))
+    return None
+
+
 def crawl_cafe_article(ctx: Context, url: str) -> RowResult:
     task = TASK_BY_ID["cafe_article"]
     sel = ctx.selectors["cafe_article"]
@@ -328,11 +340,20 @@ def crawl_cafe_article(ctx: Context, url: str) -> RowResult:
                 return d
         return None
 
+    def likes_from_json() -> int | None:
+        if not aid:
+            return None
+        for resp in page.captured_json(lambda u: "like.naver.com" in u):
+            found = _cafe_like_count(resp.data, aid)
+            if found is not None:
+                return found
+        return None
+
     page.wait_until(lambda: page.text(sel["views"], need_digit=True) is not None or from_json() is not None)
     # 새 카페 화면은 댓글 · 좋아요 칸을 0 으로 먼저 그려 두고 나중에 채운다.
-    # 그래서 글 정보 응답을 잠깐 기다렸다가 그 숫자를 쓰고, 화면 숫자는 응답이 없을 때만 쓴다.
-    if aid:
-        page.wait_until(lambda: from_json() is not None, timeout=min(6, ctx.settings.page_timeout))
+    # 그래서 글 정보 · 좋아요 응답을 잠깐 기다렸다가 그 숫자를 쓰고, 화면 숫자는 응답이 없을 때만 쓴다.
+    if aid and page.wait_until(lambda: from_json() is not None, timeout=min(6, ctx.settings.page_timeout)):
+        page.wait_until(lambda: likes_from_json() is not None, timeout=min(4, ctx.settings.page_timeout))
     # 좋아요 숫자는 늦게 붙으므로 잠깐 더 기다린다 (구 화면)
     page.wait_until(lambda: page.text(sel["likes"], need_digit=True) is not None, timeout=4)
 
@@ -363,7 +384,9 @@ def crawl_cafe_article(ctx: Context, url: str) -> RowResult:
         values["date"] = _first(values["date"], _format_ts(_first(d.get("writeDateTimestamp"), d.get("writeDate"))))
         return True
 
-    if not merge(from_json()) and aid:
+    merged = merge(from_json())
+    values["likes"] = _first(likes_from_json(), values["likes"])
+    if not merged and aid:
         # 응답을 못 잡았으면 글 정보 API 를 직접 부른다 (로그인 없이도 공개 글은 숫자가 나온다)
         club_id = resolve_club_id(ctx, ref, page)
         if club_id:

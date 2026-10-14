@@ -86,6 +86,8 @@ ROUTES: dict[tuple[str, str], tuple[str, str]] = {
           </div></div></div>
         <script>
         fetch('https://article.cafe.naver.com/gw/v2.1/cafes/444/articles/789/siblings?limit=5').then(r => r.json());
+        setTimeout(() => fetch('https://route-like.naver.com/v1/search/contents?suppress_response_codes=true'
+          + '&q=CAFE%5B444_slowcafe_789%5D|CAFE-COMMENT%5B444-789-1%5D').then(r => r.json()), 900);
         setTimeout(() => fetch('https://article.cafe.naver.com/gw/v4/cafes/444/articles/789?useCafeId=true&requestFrom=A')
           .then(r => r.json()).then(d => setTimeout(() => {
             document.getElementById('cc').textContent = d.result.article.commentCount;
@@ -95,6 +97,11 @@ ROUTES: dict[tuple[str, str], tuple[str, str]] = {
     ("article.cafe.naver.com", "/gw/v2.1/cafes/444/articles/789/siblings"): (JSON, json.dumps({
         "result": {"articles": [{"id": 790, "subject": "옆 글", "readCount": 5, "commentCount": 0}]}
     })),
+    # 좋아요 응답: 글 좋아요 1, 댓글 좋아요 5 (댓글 것은 무시해야 함). 화면의 좋아요 칸은 계속 숨은 0
+    ("route-like.naver.com", "/v1/search/contents"): (JSON, json.dumps({"contents": [
+        {"serviceId": "CAFE-COMMENT", "contentsId": "444-789-1", "reactions": [{"reactionType": "like", "count": 5}]},
+        {"serviceId": "CAFE", "contentsId": "444_slowcafe_789", "reactions": [{"reactionType": "like", "count": 1}]},
+    ]})),
     ("article.cafe.naver.com", "/gw/v4/cafes/444/articles/789"): (JSON, json.dumps({
         "result": {"cafeId": 444, "articleId": 789,
                    "article": {"id": 789, "subject": "느린 글", "readCount": 254, "commentCount": 2,
