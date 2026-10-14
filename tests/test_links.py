@@ -25,6 +25,19 @@ def test_extract_keeps_query_strings():
     assert extract_urls(f"질문 {url} 입니다") == [url]
 
 
+def test_extract_splits_joined_urls():
+    text = "https://blog.naver.com/a/1https://blog.naver.com/b/2 http://cafe.naver.com/x/3https://naver.me/AbC"
+    assert extract_urls(text) == [
+        "https://blog.naver.com/a/1",
+        "https://blog.naver.com/b/2",
+        "http://cafe.naver.com/x/3",
+        "https://naver.me/AbC",
+    ]
+    # 쿼리 값으로 들어간 주소는 나누지 않는다
+    url = "https://link.naver.com/bridge?url=https://blog.naver.com/a/1"
+    assert extract_urls(url) == [url]
+
+
 def test_txt_encodings(tmp_path):
     for i, enc in enumerate(("utf-8", "utf-8-sig", "cp949", "utf-16")):
         path = tmp_path / f"links{i}.txt"

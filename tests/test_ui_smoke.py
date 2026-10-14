@@ -18,13 +18,13 @@ SHOTS = os.environ.get("NC_SCREENSHOT_DIR")
 def qapp():
     from PySide6.QtWidgets import QApplication
 
-    from naver_crawler.ui.theme import STYLESHEET, app_font, apply_palette
+    from naver_crawler.ui.theme import app_font, app_stylesheet, apply_palette
 
     app = QApplication.instance() or QApplication([])
     app.setStyle("Fusion")
     apply_palette(app)
     app.setFont(app_font())
-    app.setStyleSheet(STYLESHEET)
+    app.setStyleSheet(app_stylesheet())
     return app
 
 

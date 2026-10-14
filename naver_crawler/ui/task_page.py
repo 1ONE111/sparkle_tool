@@ -252,7 +252,9 @@ class TaskPage(QWidget):
             elif key == "status":
                 width = 104
             elif kind == "int":
-                width = max(72, fm.horizontalAdvance(_h) + 30)
+                width = max(72, fm.horizontalAdvance(_h) + 48)  # 정렬 화살표 자리까지
+            elif key == "date":
+                width = self.table.fontMetrics().horizontalAdvance("2026. 10. 13. 14:53") + 28
             else:
                 width = min(120, max(84, (col.width if col else 12) * 6))
             self.table.setColumnWidth(i, width)

@@ -5,6 +5,7 @@ NC_TEST_CHROME (chrome 실행 파일), NC_TEST_DRIVER (chromedriver) 환경 변�
 
 import os
 import threading
+import time
 
 import pytest
 
@@ -52,6 +53,14 @@ def test_cafe_info_old_layout(engine):
     assert res.values["name"] == "테스트카페"
     assert res.values["members"] == 12345
     assert res.values["club_id"] == "111"
+
+
+def test_cafe_info_member_list_lock_is_not_private_count(engine):
+    """숫자 옆 자물쇠 '비공개' 는 멤버 목록 비공개 - 회원수는 보이므로 비고에 '회원수 비공개' 를 쓰지 않는다."""
+    (res,) = run(engine, "cafe_info", ["https://cafe.naver.com/lockcafe"])
+    assert res.status == "완료", res.message
+    assert res.values["members"] == 275752
+    assert "비공개" not in res.message
 
 
 def test_cafe_article_iframe_and_late_like(engine):
@@ -136,6 +145,15 @@ def test_kin(engine):
     (res,) = run(engine, "kin", ["https://kin.naver.com/qna/detail.naver?d1id=1&docId=2"])
     assert res.status == "완료", res.message
     assert res.values == {"title": "질문 제목", "views": 5678}
+
+
+def test_kin_new_layout(engine):
+    """새 지식iN 화면: 조회수를 바로 찾고 (시간 초과까지 기다리지 않음), 제목 앞 숨은 '질문' 은 뺀다."""
+    started = time.monotonic()
+    (res,) = run(engine, "kin", ["https://kin.naver.com/qna/detail.naver?d1id=7&docId=9"])
+    assert res.status == "완료", res.message
+    assert res.values == {"title": "질문 있어요 독감", "views": 1207}
+    assert time.monotonic() - started < 4  # page_timeout(5초) 까지 기다리지 않는다
 
 
 def test_missing_page_is_failure_not_crash(engine):

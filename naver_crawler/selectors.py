@@ -128,12 +128,14 @@ DEFAULT_SELECTORS: dict[str, dict[str, list[str]]] = {
     "kin": {
         "frames": [],
         "title": [
+            ".endTitleSection",
             ".c-heading__title-inner .title",
             ".c-heading__title",
             ".question-content .title",
-            ".endTitleSection",
         ],
         "views": [
+            ".endTitleSection ~ .userInfo .infoItem",
+            ".contentArea .userInfo .infoItem",
             "#content .question-content .c-userinfo__left span:nth-child(3)",
             ".question-content .c-userinfo__info",
             ".c-userinfo__left .infos",

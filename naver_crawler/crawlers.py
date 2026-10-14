@@ -285,7 +285,8 @@ def crawl_cafe_info(ctx: Context, url: str) -> RowResult:
     note = ""
     raw_members = page.text(sel["members"])
     members = _count(raw_members, MEMBER_LABELS)
-    if raw_members and "비공개" in raw_members:
+    # '275,752 [자물쇠]비공개' 는 멤버 목록만 비공개라 숫자는 그대로 쓴다. 숫자가 없을 때만 회원수 비공개
+    if raw_members and "비공개" in raw_members and members is None:
         note = "회원수 비공개 카페"
     name = page.text(sel["name"])
 
@@ -811,17 +812,26 @@ def crawl_blog_post(ctx: Context, url: str) -> RowResult:
 # ================================================================ 6. 지식iN
 
 
+KIN_TITLE_ICON = ".endTitleSection .iconQuestion"  # 새 화면: 제목 앞 아이콘 안에 숨은 글자 '질문'
+
+
 def crawl_kin(ctx: Context, url: str) -> RowResult:
     task = TASK_BY_ID["kin"]
     sel = ctx.selectors["kin"]
     page = ctx.page()
     page.open(url, sel.get("frames", []))
-    page.wait_until(lambda: page.text(sel["views"], need_digit=True, contains=["조회"]) is not None)
 
-    views = _count(page.text(sel["views"], need_digit=True, contains=["조회"]), VIEW_LABELS)
-    if views is None:
-        views = regex_count(page.body_text(), VIEW_LABELS)
-    title = _first(page.text(sel["title"]), strip_suffixes(page.top_title(), KIN_TITLE_SUFFIXES))
+    def views_now() -> int | None:
+        found = _count(page.text(sel["views"], need_digit=True, contains=["조회"]), VIEW_LABELS)
+        return found if found is not None else regex_count(page.body_text(), VIEW_LABELS)
+
+    # 화면 요소를 못 찾아도 본문에 '조회수 N' 이 보이면 바로 넘어간다 (시간 초과까지 기다리지 않게)
+    page.wait_until(lambda: views_now() is not None)
+    views = views_now()
+    title = page.text(sel["title"])
+    if title and title.startswith("질문") and page.count([KIN_TITLE_ICON]) > 0:
+        title = title[len("질문"):].strip() or None
+    title = _first(title, strip_suffixes(page.top_title(), KIN_TITLE_SUFFIXES))
     return finish(task, {"title": title, "views": views}, ctx, page)
 
 
