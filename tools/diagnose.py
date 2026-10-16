@@ -7,6 +7,7 @@
 
 카페 메인 주소는 카페 정보 · 평균 조회수, 지식iN 주소는 지식iN 결과만 출력한다.
 'kin' 만 넣으면 지식iN 목록에서 질문 주소 몇 개를 골라 수집한다.
+'deleted:카페주소' 는 최신 글 목록에서 번호가 빠진 글(삭제 추정)과 없는 번호를 카페 게시글로 확인한다.
 """
 
 import json
@@ -188,6 +189,9 @@ def diagnose_cafe(s: requests.Session, urls: list[str]) -> None:
             time.sleep(3)
             page.enter_frame()
             print(f"      현재 주소: {page.driver.current_url}")
+            for where, text in (("본문", page.body_text()), ("최상위 본문", page.top_body_text())):
+                for m in list(re.finditer(r".{0,40}(?:삭제|존재하지|없는 게시글|권한|열람).{0,40}", text))[:4]:
+                    print(f"      [{where}] {m.group(0)!r}")
             for line in page.driver.execute_script(_JS_DUMP, sel["comments"] + EXTRA_COMMENT_SELECTORS) or []:
                 print(f"      · {line}")
             body = page.body_text()
@@ -263,6 +267,10 @@ def inspect_cafe_main(s: requests.Session, urls: list[str]) -> None:
                 if first:
                     print("      [첫 글] " + json.dumps({k: v for k, v in first.items() if not isinstance(v, (dict, list))},
                                                      ensure_ascii=False)[:600])
+                for d in (d for d in walk_dicts(data) if "readCount" in d) if data is not None else []:
+                    flags = {k: d.get(k) for k in ("articleId", "readCount", "blindArticle", "delParent", "openArticle",
+                                                    "isDeleted", "deleted", "articleStatus") if k in d}
+                    print(f"      [글] {flags} {str(d.get('subject', ''))[:20]!r}")
     finally:
         engine.shutdown()
 
@@ -311,6 +319,24 @@ def inspect_kin(urls: list[str]) -> None:
         engine.shutdown()
 
 
+def sample_deleted_cafe_urls(s: requests.Session, slug: str, count: int = 3) -> list[str]:
+    """카페 최신 글 목록에서 번호가 빠진 글(삭제됐을 가능성이 큰 글) 몇 개 + 아예 없는 번호."""
+    gate = load_json_loose(s.get(f"https://apis.naver.com/cafe-web/cafe2/CafeGateInfo.json?cluburl={slug}",
+                                 headers={"Referer": "https://cafe.naver.com/"}, timeout=15).text)
+    club_id = find_key(gate, ["cafeId", "clubId", "clubid"]) if gate else None
+    if not club_id:
+        print(f"  {slug}: 카페 ID 없음")
+        return []
+    data = load_json_loose(s.get(
+        f"https://apis.naver.com/cafe-web/cafe2/ArticleListV2dot1.json?search.clubid={club_id}"
+        "&search.queryType=lastArticle&search.page=1&search.perPage=50&search.boardtype=L&ad=false",
+        headers={"Referer": f"https://cafe.naver.com/f-e/cafes/{club_id}/menus/0"}, timeout=15).text)
+    seen = sorted({int(d["articleId"]) for d in walk_dicts(data) if "articleId" in d and "readCount" in d}, reverse=True)
+    gaps = [n for hi, lo in zip(seen, seen[1:]) for n in range(hi - 1, lo, -1)][:count]
+    print(f"  {slug}: 목록 {len(seen)}개, 빠진 번호 {gaps}")
+    return [f"https://cafe.naver.com/{slug}/{n}" for n in gaps] + ([f"https://cafe.naver.com/{slug}/{seen[0] * 10}"] if seen else [])
+
+
 def sample_kin_urls(s: requests.Session, count: int = 3) -> list[str]:
     """지식iN 목록에서 질문 주소 몇 개 (인자로 'kin' 만 넣었을 때)."""
     for page in ("https://kin.naver.com/qna/list.naver", "https://kin.naver.com/"):
@@ -335,7 +361,9 @@ def main(args: list[str]) -> None:
     kins = [a for a in args if "kin.naver.com" in a]
     if "kin" in args:
         kins += sample_kin_urls(s)
-    args = [a for a in args if a != "kin" and "kin.naver.com" not in a]
+    for a in [a for a in args if a.startswith("deleted:")]:
+        args += sample_deleted_cafe_urls(s, a.split(":", 1)[1])
+    args = [a for a in args if a != "kin" and "kin.naver.com" not in a and not a.startswith("deleted:")]
     cafe_urls = [a for a in args if "cafe.naver.com" in a]
     cafes = [a for a in cafe_urls if parse_cafe_url(a).article_id]
     cafe_mains = [a for a in cafe_urls if a not in cafes]
