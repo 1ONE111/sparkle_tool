@@ -34,6 +34,13 @@ ROUTES: dict[tuple[str, str], tuple[str, str]] = {
         <iframe id="cafe_main" name="cafe_main" src="/MyCafeIntro.nhn?clubid=111"></iframe>""",
     )),
     ("cafe.naver.com", "/MyCafeIntro.nhn"): (HTML, page("intro", "<p>카페 소개</p>")),
+    # ---- 삭제된 카페 글: 카페 메인으로 넘어감 (메인에는 다른 글의 조회 · 댓글 · 좋아요 숫자)
+    ("cafe.naver.com", "/gonemain"): (HTML, page(
+        "사라진글카페 : 네이버 카페",
+        """<h1>사라진글카페</h1><script>var g_sClubId = "666";</script>
+        <ul class="popular"><li>인기글 <span>조회 340</span> <span>댓글 5</span> <span>좋아요 9</span></li></ul>""",
+    )),
+    ("cafe.naver.com", "/gonemain/777"): (HTML, page("카페", "<script>location.replace('/gonemain');</script>")),
     # ---- 카페 메인: 멤버 목록만 비공개 (숫자 옆 자물쇠 '비공개')
     ("cafe.naver.com", "/lockcafe"): (HTML, page(
         "잠금카페 : 네이버 카페",

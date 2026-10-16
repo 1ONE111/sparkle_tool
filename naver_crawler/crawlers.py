@@ -28,6 +28,7 @@ from naver_crawler.parsing import (
     club_id_from_html,
     find_dict,
     find_key,
+    load_json_loose,
     parse_blog_url,
     parse_cafe_url,
     parse_count,
@@ -48,6 +49,7 @@ STATUS_WAIT = "대기"
 STATUS_RUNNING = "수집 중"
 STATUS_CANCELLED = "중지됨"
 STATUS_NO_WIDGET = "위젯없음"     # 방문자 위젯을 꺼둔 블로그. 엑셀 본 시트에서 자동 제외
+STATUS_DELETED = "게시글 삭제"   # 삭제됐거나 없는 글. 숫자는 비워 두고 다시 수집하지 않는다
 EXCLUDED_STATUSES = (STATUS_NO_WIDGET,)
 
 
@@ -100,6 +102,7 @@ class Context:
         self.stop = stop
         self.log = log
         self._cookies_synced = False
+        self.club_ids: dict[str, str] = {}  # 카페 주소 -> 카페 ID (같은 카페 글을 여러 개 넣을 때 한 번만 찾게)
 
     @property
     def http(self) -> NaverHttp:
@@ -321,13 +324,59 @@ def _cafe_like_count(data: Any, article_id: str) -> int | None:
     return None
 
 
+CAFE_ARTICLE_API = ("https://apis.naver.com/cafe-web/cafe-articleapi/v2.1/cafes/{club_id}/articles/{aid}"
+                    "?query=&useCafeId=true&requestFrom=A")
+DELETED_NOTE = "삭제되었거나 존재하지 않는 게시글"
+
+
+def _is_deleted_reply(data: Any) -> bool:
+    """글 정보 API 오류 응답이 '삭제되었거나 존재하지 않는 게시글' 인지 (errorCode 4003)."""
+    reason = str(find_key(data, ["reason", "msg"]) or "")
+    return str(find_key(data, ["errorCode", "code"]) or "") == "4003" or "삭제되었거나" in reason
+
+
+def _cafe_club_id_quick(ctx: Context, ref: CafeRef) -> str | None:
+    """크롬 없이 카페 ID (주소에 없으면 카페 정보 API, 결과는 작업 동안 기억)."""
+    if ref.club_id or not ref.slug:
+        return ref.club_id
+    key = ref.slug.lower()
+    if key not in ctx.club_ids:
+        info = _cafe_api_info(ctx, ref)
+        ctx.club_ids[key] = str(_first(info.get("cafeId"), info.get("clubId"), info.get("clubid")) or "") if info else ""
+    return ctx.club_ids[key] or None
+
+
+def _cafe_article_api(ctx: Context, club_id: str, aid: str) -> tuple[bool, Any]:
+    """(삭제된 글인지, 글 정보 JSON). 요청이 안 되면 (False, None)."""
+    status, text = ctx.api_fetch(CAFE_ARTICLE_API.format(club_id=club_id, aid=aid), "https://cafe.naver.com/")
+    data = load_json_loose(text)
+    if status != 200:
+        return (data is not None and _is_deleted_reply(data)), None
+    return False, data
+
+
 def crawl_cafe_article(ctx: Context, url: str) -> RowResult:
     task = TASK_BY_ID["cafe_article"]
     sel = ctx.selectors["cafe_article"]
     ref = parse_cafe_url(url)
     aid = ref.article_id
+    # 삭제된 글을 크롬으로 열면 카페 메인으로 넘어가 메인 화면의 엉뚱한 숫자가 잡힌다 → 먼저 글 정보 API 로 확인
+    club_id = _cafe_club_id_quick(ctx, ref) if aid else None
+    if club_id and _cafe_article_api(ctx, club_id, aid)[0]:
+        return RowResult({}, STATUS_DELETED, DELETED_NOTE)
     page = ctx.page()
     page.open(url, sel.get("frames", ["cafe_main"]))
+
+    def on_article() -> bool:
+        """글 화면에 머물러 있는지 (삭제 · 권한 없음이면 카페 메인이나 로그인 화면으로 넘어간다)."""
+        return not aid or aid in page.driver.current_url
+
+    def gone() -> bool:
+        """페이지가 받은 글 정보 응답이 '삭제되었거나 존재하지 않는 게시글'."""
+        return bool(aid) and any(
+            re.search(rf"/articles/{aid}(?:$|[?#])", r.url) and _is_deleted_reply(r.data)
+            for r in page.captured_json(lambda u: f"/articles/{aid}" in u)
+        )
 
     def from_json() -> dict | None:
         """이 글의 정보 응답. 옆 글 · 인기글 목록 응답(…/articles/번호/siblings 등)은 건너뛴다."""
@@ -350,13 +399,18 @@ def crawl_cafe_article(ctx: Context, url: str) -> RowResult:
                 return found
         return None
 
-    page.wait_until(lambda: page.text(sel["views"], need_digit=True) is not None or from_json() is not None)
+    page.wait_until(lambda: page.text(sel["views"], need_digit=True) is not None or from_json() is not None
+                    or gone() or not on_article())
+    if gone():
+        return RowResult({}, STATUS_DELETED, DELETED_NOTE)
+    stayed = on_article()
     # 새 카페 화면은 댓글 · 좋아요 칸을 0 으로 먼저 그려 두고 나중에 채운다.
     # 그래서 글 정보 · 좋아요 응답을 잠깐 기다렸다가 그 숫자를 쓰고, 화면 숫자는 응답이 없을 때만 쓴다.
-    if aid and page.wait_until(lambda: from_json() is not None, timeout=min(6, ctx.settings.page_timeout)):
+    if stayed and aid and page.wait_until(lambda: from_json() is not None, timeout=min(6, ctx.settings.page_timeout)):
         page.wait_until(lambda: likes_from_json() is not None, timeout=min(4, ctx.settings.page_timeout))
     # 좋아요 숫자는 늦게 붙으므로 잠깐 더 기다린다 (구 화면)
-    page.wait_until(lambda: page.text(sel["likes"], need_digit=True) is not None, timeout=4)
+    if stayed:
+        page.wait_until(lambda: page.text(sel["likes"], need_digit=True) is not None, timeout=4)
 
     values = {
         "title": page.text(sel["title"]),
@@ -385,22 +439,26 @@ def crawl_cafe_article(ctx: Context, url: str) -> RowResult:
         values["date"] = _first(values["date"], _format_ts(_first(d.get("writeDateTimestamp"), d.get("writeDate"))))
         return True
 
+    if not stayed:
+        # 다른 화면(카페 메인 · 로그인)으로 넘어갔으면 그 화면의 숫자 · 제목은 이 글 것이 아니다
+        values.update(dict.fromkeys(values))
     merged = merge(from_json())
     values["likes"] = _first(likes_from_json(), values["likes"])
     if not merged and aid:
         # 응답을 못 잡았으면 글 정보 API 를 직접 부른다 (로그인 없이도 공개 글은 숫자가 나온다)
-        club_id = resolve_club_id(ctx, ref, page)
+        club_id = club_id or resolve_club_id(ctx, ref, page)
         if club_id:
-            data = ctx.api_json(
-                f"https://apis.naver.com/cafe-web/cafe-articleapi/v2.1/cafes/{club_id}/articles/{aid}"
-                "?query=&useCafeId=true&requestFrom=A",
-                "https://cafe.naver.com/",
-            )
+            deleted, data = _cafe_article_api(ctx, club_id, aid)
+            if deleted:
+                return RowResult({}, STATUS_DELETED, DELETED_NOTE)
             if data is not None:
-                merge(find_dict(data, {"id": aid}, ["readCount"]) or find_dict(data, {}, ["readCount"]))
+                merged = merge(find_dict(data, {"id": aid}, ["readCount"]) or find_dict(data, {}, ["readCount"]))
                 if values["likes"] is None:
                     values["likes"] = parse_count(find_key(data, ["likeItCount", "likeCount"]))
 
+    if not stayed:
+        note = "" if merged else "글 화면이 열리지 않았습니다 (가입 · 로그인이 필요하거나 삭제된 글일 수 있음)"
+        return finish(task, values, ctx, page, note)
     if any(values[k] is None for k in ("views", "comments", "likes")):
         body = page.body_text()
         values["views"] = _first(values["views"], regex_count(body, VIEW_LABELS))

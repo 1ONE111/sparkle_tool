@@ -63,6 +63,37 @@ def test_cafe_info_member_list_lock_is_not_private_count(engine):
     assert "비공개" not in res.message
 
 
+GONE = (404, '{"result":{"errorCode":"4003","reason":"삭제되었거나 존재하지 않는 게시글입니다."}}')
+
+
+def test_cafe_article_deleted_checked_before_browser(engine):
+    """글 정보 API 가 4003(삭제)이면 크롬을 열지 않고 바로 '게시글 삭제'."""
+    http = FakeHttp({
+        "https://apis.naver.com/cafe-web/cafe2/CafeGateInfo.json?cluburl=gonecafe": '{"cafeId": 555, "cafeUrl": "gonecafe"}',
+        "https://apis.naver.com/cafe-web/cafe-articleapi/v2.1/cafes/555/articles/999": GONE,
+    })
+    started = time.monotonic()
+    (res,) = run(engine, "cafe_article", ["https://cafe.naver.com/gonecafe/999"], http)
+    assert res.status == "게시글 삭제", res.message
+    assert all(v in (None, "") for v in res.values.values())
+    assert time.monotonic() - started < 2
+
+
+def test_cafe_article_deleted_redirect_to_main_takes_no_main_numbers(engine):
+    """크롬으로 열었더니 카페 메인으로 넘어간 삭제 글: 메인의 '조회 340' 같은 숫자를 쓰지 않는다."""
+    http = FakeHttp({"https://apis.naver.com/cafe-web/cafe-articleapi/v2.1/cafes/666/articles/777": GONE})
+    (res,) = run(engine, "cafe_article", ["https://cafe.naver.com/gonemain/777"], http)
+    assert res.status == "게시글 삭제", res.message
+    assert res.values.get("views") is None
+
+
+def test_cafe_article_redirected_without_api_is_failure_not_main_numbers(engine):
+    """글 정보 API 도 안 되는데 다른 화면으로 넘어가면 실패 (메인 화면 숫자 · 카페명을 글 값으로 쓰지 않음)."""
+    (res,) = run(engine, "cafe_article", ["https://cafe.naver.com/gonemain/777"])
+    assert res.status == "실패", res.message
+    assert res.values["views"] is None and res.values["title"] is None
+
+
 def test_cafe_article_iframe_and_late_like(engine):
     (res,) = run(engine, "cafe_article", ["https://cafe.naver.com/testcafe/123"])
     assert res.status == "완료", res.message

@@ -15,6 +15,7 @@ from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPalette
 from naver_crawler.crawlers import (
     STATUS_CANCELLED,
     STATUS_FAIL,
+    STATUS_DELETED,
     STATUS_NO_WIDGET,
     STATUS_OK,
     STATUS_PARTIAL,
@@ -44,6 +45,7 @@ STATUS_COLORS = {
     STATUS_PARTIAL: ("#8A5A00", "#FFF2C7"),
     STATUS_FAIL: ("#D70015", "#FFE4E6"),
     STATUS_NO_WIDGET: ("#3634A3", "#E8E7FB"),
+    STATUS_DELETED: ("#48484A", "#E5E5EA"),
     STATUS_RUNNING: (ORANGE_TEXT, ORANGE_SOFT),
     STATUS_CANCELLED: ("#48484A", "#E5E5EA"),
     STATUS_WAIT: ("#8E8E93", "#F2F2F7"),

@@ -28,6 +28,7 @@ from naver_crawler.config import Settings
 from naver_crawler.crawlers import (
     STATUS_CANCELLED,
     STATUS_FAIL,
+    STATUS_DELETED,
     STATUS_NO_WIDGET,
     STATUS_OK,
     STATUS_PARTIAL,
@@ -252,9 +253,9 @@ class TaskPage(QWidget):
             elif key == "status":
                 width = 104
             elif kind == "int":
-                width = max(72, fm.horizontalAdvance(_h) + 48)  # 정렬 화살표 자리까지
+                width = max(72, fm.horizontalAdvance(_h) + 32)  # 정렬 화살표 자리까지
             elif key == "date":
-                width = self.table.fontMetrics().horizontalAdvance("2026. 10. 13. 14:53") + 28
+                width = self.table.fontMetrics().horizontalAdvance("2026. 10. 13. 14:53") + 18
             else:
                 width = min(120, max(84, (col.width if col else 12) * 6))
             self.table.setColumnWidth(i, width)
@@ -418,7 +419,7 @@ class TaskPage(QWidget):
         c = self.model.counts()
         self.summary.set_counts(
             len(self.model.rows),
-            [(s, c.get(s, 0)) for s in (STATUS_OK, STATUS_PARTIAL, STATUS_FAIL, STATUS_NO_WIDGET)],
+            [(s, c.get(s, 0)) for s in (STATUS_OK, STATUS_PARTIAL, STATUS_FAIL, STATUS_NO_WIDGET, STATUS_DELETED)],
         )
         has_rows = bool(self.model.rows)
         self.copy_btn.setEnabled(has_rows)

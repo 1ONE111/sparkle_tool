@@ -22,6 +22,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from naver_crawler.crawlers import (
     EXCLUDED_STATUSES,
     STATUS_CANCELLED,
+    STATUS_DELETED,
     STATUS_FAIL,
     STATUS_OK,
     STATUS_PARTIAL,
@@ -74,6 +75,8 @@ def note_for(row: dict) -> str:
         return f"실패 - {message}" if message else "실패"
     if status == STATUS_CANCELLED:
         return "중지됨 (미수집)"
+    if status == STATUS_DELETED:
+        return STATUS_DELETED
     if status in EXCLUDED_STATUSES:
         return message or str(status)
     return "미수집"
