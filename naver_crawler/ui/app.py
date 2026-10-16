@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QStyleFactory
 from naver_crawler import APP_ID, APP_NAME
 from naver_crawler.config import Settings
 from naver_crawler.ui.main_window import MainWindow
-from naver_crawler.ui.theme import STYLESHEET, app_font, app_icon, apply_palette
+from naver_crawler.ui.theme import app_font, app_icon, app_stylesheet, apply_palette
 
 
 def selftest(with_browser: bool = False) -> int:
@@ -38,7 +38,7 @@ def selftest(with_browser: bool = False) -> int:
         lines.append(f"selenium-manager: {SeleniumManager._get_binary()}")
         app = QApplication([sys.argv[0]])
         apply_palette(app)
-        app.setStyleSheet(STYLESHEET)
+        app.setStyleSheet(app_stylesheet())
         window = MainWindow(Settings())
         assert len(window.pages) == 6
         window.close()
@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     app.setStyle(QStyleFactory.create("Fusion"))
     apply_palette(app)
     app.setFont(app_font())
-    app.setStyleSheet(STYLESHEET)
+    app.setStyleSheet(app_stylesheet())
     app.setWindowIcon(app_icon())
 
     window = MainWindow(Settings.load())

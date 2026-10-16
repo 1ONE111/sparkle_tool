@@ -34,6 +34,22 @@ ROUTES: dict[tuple[str, str], tuple[str, str]] = {
         <iframe id="cafe_main" name="cafe_main" src="/MyCafeIntro.nhn?clubid=111"></iframe>""",
     )),
     ("cafe.naver.com", "/MyCafeIntro.nhn"): (HTML, page("intro", "<p>카페 소개</p>")),
+    # ---- 삭제된 카페 글: 카페 메인으로 넘어감 (메인에는 다른 글의 조회 · 댓글 · 좋아요 숫자)
+    ("cafe.naver.com", "/gonemain"): (HTML, page(
+        "사라진글카페 : 네이버 카페",
+        """<h1>사라진글카페</h1><script>var g_sClubId = "666";</script>
+        <ul class="popular"><li>인기글 <span>조회 340</span> <span>댓글 5</span> <span>좋아요 9</span></li></ul>""",
+    )),
+    ("cafe.naver.com", "/gonemain/777"): (HTML, page("카페", "<script>location.replace('/gonemain');</script>")),
+    # ---- 카페 메인: 멤버 목록만 비공개 (숫자 옆 자물쇠 '비공개')
+    ("cafe.naver.com", "/lockcafe"): (HTML, page(
+        "잠금카페 : 네이버 카페",
+        """<h1>잠금카페</h1>
+        <script>var g_sClubId = "333";</script>
+        <div id="cafe-info-data"><ul>
+          <li class="mem-cnt-info"><a>카페멤버수</a><a><em>275,752<span class="ico_lock2">비공개</span></em></a></li>
+        </ul></div>""",
+    )),
     # ---- 카페 게시글 (구 화면: cafe_main iframe, 좋아요는 늦게 표시)
     ("cafe.naver.com", "/testcafe/123"): (HTML, page(
         "첫 글 : 네이버 카페",
@@ -169,6 +185,18 @@ ROUTES: dict[tuple[str, str], tuple[str, str]] = {
     )),
     # ---- 방문자 위젯 API (브라우저 대체 경로)
     ("blog.naver.com", "/NVisitorgp4Ajax.nhn"): (XML, "<visitorcnts></visitorcnts>"),
+    # ---- 지식iN (새 화면: 제목 앞 아이콘에 숨은 글자 '질문', 조회수는 .userInfo .infoItem)
+    ("kin.naver.com", "/qna/detail.naver?d1id=7&docId=9"): (HTML, page(
+        "질문 있어요 독감 : 지식iN",
+        """<div class="contentArea _contentWrap">
+          <div class="endTitleSection"><span class="iconQuestion"><svg width="40" height="40"></svg>
+            <span class="blind" style="position:absolute;clip:rect(0 0 0 0);width:1px;height:1px;overflow:hidden">질문</span>
+          </span> 질문 있어요 독감 </div>
+          <div class="userInfo userInfo__bullet"><span class="infoHeadItem"> chea**** </span>
+            <span class="infoItem">조회수 1,207</span><span class="infoItem"><span class="blind">작성일</span>1분 전</span></div>
+          <div class="questionDetail">목이 아파요</div>
+        </div>""",
+    )),
     # ---- 지식iN
     ("kin.naver.com", "/qna/detail.naver"): (HTML, page(
         "질문 제목 : 지식iN",

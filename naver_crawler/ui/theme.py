@@ -6,6 +6,8 @@ SwiftUI(iOS 17 이전) 느낌의 밝은 그룹 배경 + 흰 카드, 포인트 �
 from __future__ import annotations
 
 import math
+import tempfile
+from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap
@@ -13,6 +15,7 @@ from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPalette
 from naver_crawler.crawlers import (
     STATUS_CANCELLED,
     STATUS_FAIL,
+    STATUS_DELETED,
     STATUS_NO_WIDGET,
     STATUS_OK,
     STATUS_PARTIAL,
@@ -42,6 +45,7 @@ STATUS_COLORS = {
     STATUS_PARTIAL: ("#8A5A00", "#FFF2C7"),
     STATUS_FAIL: ("#D70015", "#FFE4E6"),
     STATUS_NO_WIDGET: ("#3634A3", "#E8E7FB"),
+    STATUS_DELETED: ("#48484A", "#E5E5EA"),
     STATUS_RUNNING: (ORANGE_TEXT, ORANGE_SOFT),
     STATUS_CANCELLED: ("#48484A", "#E5E5EA"),
     STATUS_WAIT: ("#8E8E93", "#F2F2F7"),
@@ -154,6 +158,49 @@ QStatusBar {{ background: white; border-top: 1px solid {LINE}; color: {MUTED}; f
 QStatusBar::item {{ border: none; }}
 QDialog, QMessageBox {{ background: white; }}
 """
+
+
+def _arrow_file(up: bool) -> str:
+    """숫자 칸 위/아래 화살표 그림 (스타일시트는 그림 파일 경로만 받는다)."""
+    path = Path(tempfile.gettempdir()) / "NaverCrawler-ui" / f"spin-{'up' if up else 'down'}.png"
+    if not path.exists():
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return ""  # 화살표만 안 보일 뿐 숫자 칸은 그대로 동작
+        pm = QPixmap(20, 12)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(MUTED))
+        tip, base = (1, 11) if up else (11, 1)
+        p.drawPolygon([QPointF(2, base), QPointF(18, base), QPointF(10, tip)])
+        p.end()
+        pm.save(str(path))
+    return path.as_posix()
+
+
+def app_stylesheet() -> str:
+    """STYLESHEET + 숫자 칸 화살표. 테두리를 꾸민 QSpinBox 는 화살표가 사라지므로 직접 그린다."""
+    spins = ("QSpinBox", "QDoubleSpinBox")
+
+    def rule(sub: str, body: str) -> str:
+        return ", ".join(f"{s}::{sub}" for s in spins) + f" {{ {body} }}"
+
+    return STYLESHEET + "\n".join([
+        ", ".join(spins) + " { padding-right: 24px; }",
+        rule("up-button", "subcontrol-origin: border; subcontrol-position: top right; width: 22px; "
+                          "border: none; background: transparent; border-top-right-radius: 8px;"),
+        rule("down-button", "subcontrol-origin: border; subcontrol-position: bottom right; width: 22px; "
+                            "border: none; background: transparent; border-bottom-right-radius: 8px;"),
+        rule("up-button:hover", f"background: {FILL};"),
+        rule("down-button:hover", f"background: {FILL};"),
+        rule("up-arrow", f"image: url({_arrow_file(True)}); width: 9px; height: 5px;"),
+        rule("down-arrow", f"image: url({_arrow_file(False)}); width: 9px; height: 5px;"),
+        # 표 머리글 정렬 화살표: 오른쪽 정렬된 숫자 머리글과 겹치지 않게 자리를 따로 둔다
+        "QHeaderView::section { padding-right: 22px; }",
+    ])
 
 
 def app_font(size: int = 10) -> QFont:

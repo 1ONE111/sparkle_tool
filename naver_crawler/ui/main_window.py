@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 
 from naver_crawler import APP_NAME, __version__
 from naver_crawler.config import Settings, app_data_dir
-from naver_crawler.crawlers import STATUS_FAIL, STATUS_NO_WIDGET, STATUS_OK, TASKS
+from naver_crawler.crawlers import STATUS_DELETED, STATUS_FAIL, STATUS_NO_WIDGET, STATUS_OK, TASKS
 from naver_crawler.engine import Engine
 from naver_crawler.excel import default_filename, export_xlsx
 from naver_crawler.selectors import write_default_selectors
@@ -390,6 +390,7 @@ class MainWindow(QMainWindow):
             f"{page.task.title} {'완료' if completed else '중지'} · 완료 {counts.get(STATUS_OK, 0)} · "
             f"실패 {counts.get(STATUS_FAIL, 0)}"
             + (f" · 위젯없음 {counts[STATUS_NO_WIDGET]}" if counts.get(STATUS_NO_WIDGET) else "")
+            + (f" · 게시글 삭제 {counts[STATUS_DELETED]}" if counts.get(STATUS_DELETED) else "")
         )
         self.append_log(f"── {summary}")
         self.show_message(summary)

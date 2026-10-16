@@ -100,3 +100,17 @@ def test_blog_sheet_order_sort_and_no_widget_exclusion(tmp_path):
 
 def test_default_filename():
     assert default_filename("카페 게시글", dt.datetime(2026, 10, 6, 3, 4)) == "네이버크롤링_카페_게시글_261006.xlsx"
+
+
+def test_deleted_post_stays_in_list_with_note(tmp_path):
+    """삭제된 글은 본 시트에 그대로 두고 숫자는 비우고 비고에 '게시글 삭제'."""
+    task = TASK_BY_ID["cafe_article"]
+    rows = [{"url": "https://cafe.naver.com/a/9", "status": "게시글 삭제", "message": "삭제되었거나 존재하지 않는 게시글"}]
+    wb = load_workbook(export_xlsx(tmp_path / "out", [SheetData(task.title, task.description, task.columns, rows)], WHEN))
+    assert wb.sheetnames == ["카페 게시글"]
+    ws = wb["카페 게시글"]
+    headers = [ws.cell(HEADER_ROW, c).value for c in range(2, 11)]
+    row = {h: ws.cell(FIRST_DATA_ROW, 2 + i).value for i, h in enumerate(headers)}
+    assert row["비고"] == "게시글 삭제"
+    assert row["URL"] == "https://cafe.naver.com/a/9"
+    assert row["조회수"] in (None, "", "-")

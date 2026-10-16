@@ -4,10 +4,15 @@
 
 1) 크롬 없이 요청했을 때 각 주소가 무엇을 돌려주는지 (상태 코드, 핵심 키 주변 글자)
 2) 실제 크롤러로 블로그 정보 / 블로그 포스팅을 수집한 결과
+
+카페 메인 주소는 카페 정보 · 평균 조회수, 지식iN 주소는 지식iN 결과만 출력한다.
+'kin' 만 넣으면 지식iN 목록에서 질문 주소 몇 개를 골라 수집한다.
+'deleted:카페주소' 는 최신 글 목록에서 번호가 빠진 글(삭제 추정)과 없는 번호를 카페 게시글로 확인한다.
 """
 
 import json
 import re
+from html import unescape
 import sys
 import threading
 import time
@@ -18,10 +23,12 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from naver_crawler.config import Settings  # noqa: E402
-from naver_crawler.crawlers import TASK_BY_ID, Context  # noqa: E402
+from naver_crawler.crawlers import TASK_BY_ID, Context, extract_read_counts, resolve_club_id  # noqa: E402
 from naver_crawler.engine import Engine  # noqa: E402
 from naver_crawler.http import DEFAULT_UA  # noqa: E402
-from naver_crawler.parsing import find_key, load_json_loose, parse_blog_url, parse_cafe_url  # noqa: E402
+from naver_crawler.parsing import (  # noqa: E402
+    find_key, load_json_loose, parse_blog_url, parse_cafe_url, walk_dicts,
+)
 from naver_crawler.selectors import load_selectors  # noqa: E402
 
 PATTERNS = [
@@ -182,6 +189,9 @@ def diagnose_cafe(s: requests.Session, urls: list[str]) -> None:
             time.sleep(3)
             page.enter_frame()
             print(f"      현재 주소: {page.driver.current_url}")
+            for where, text in (("본문", page.body_text()), ("최상위 본문", page.top_body_text())):
+                for m in list(re.finditer(r".{0,40}(?:삭제|존재하지|없는 게시글|권한|열람).{0,40}", text))[:4]:
+                    print(f"      [{where}] {m.group(0)!r}")
             for line in page.driver.execute_script(_JS_DUMP, sel["comments"] + EXTRA_COMMENT_SELECTORS) or []:
                 print(f"      · {line}")
             body = page.body_text()
@@ -200,12 +210,172 @@ def diagnose_cafe(s: requests.Session, urls: list[str]) -> None:
         engine.shutdown()
 
 
+def crawl(task_id: str, urls: list[str]) -> None:
+    """크롤러 결과만 한 줄씩 (창 없는 크롬, 로그인 안 함)."""
+    print(f"\n=== {TASK_BY_ID[task_id].title}: 크롤러 ===")
+    settings = Settings(headless=True, keep_login=False, request_delay=0.5, page_timeout=15, save_debug_html=True)
+    engine = Engine(settings, lambda msg: print(f"  log: {msg}"))
+    results = {}
+    try:
+        engine.run(TASK_BY_ID[task_id], list(enumerate(urls)), threading.Event(),
+                   on_result=lambda k, r: results.__setitem__(k, r))
+    finally:
+        engine.shutdown()
+    for i, url in enumerate(urls):
+        r = results.get(i)
+        print(f"- {url}: {r.status if r else '-'} {r.values if r else ''} {r.message if r else ''}")
+
+
+def inspect_cafe_main(s: requests.Session, urls: list[str]) -> None:
+    """카페 정보(회원수 칸 · memberCount 응답)와 평균 조회수용 목록 API 응답."""
+    print("\n=== 카페 메인: 회원수 위치 · 목록 API ===")
+    settings = Settings(headless=True, keep_login=False, request_delay=0.5, page_timeout=15)
+    engine = Engine(settings, lambda msg: None)
+    sel = load_selectors()
+    ctx = Context(engine.browser, engine.http, settings, sel, threading.Event(), lambda m: None)
+    try:
+        for url in urls:
+            print(f"- {url}")
+            page = ctx.page()
+            page.open(url, [])
+            time.sleep(4)
+            page.enter_frame()
+            print(f"      현재 주소: {page.driver.current_url}")
+            for line in page.driver.execute_script(_JS_DUMP, sel["cafe_info"]["members"]) or []:
+                print(f"      · {line}")
+            for m in list(re.finditer(r".{0,30}(?:멤버|회원|비공개).{0,30}", page.body_text()))[:8]:
+                print(f"      [본문] {m.group(0)!r}")
+            for resp in page.captured_json():
+                for d in walk_dicts(resp.data):
+                    if "memberCount" in d:
+                        keys = {k: v for k, v in d.items() if not isinstance(v, (dict, list))}
+                        print(f"      [응답] {resp.url[:120]}")
+                        print("         " + json.dumps(keys, ensure_ascii=False)[:600])
+                        break
+            club_id = resolve_club_id(ctx, parse_cafe_url(url), page)
+            if not club_id:
+                continue
+            for name, api in (
+                ("list_v2.1", f"https://apis.naver.com/cafe-web/cafe2/ArticleListV2dot1.json?search.clubid={club_id}"
+                              "&search.queryType=lastArticle&search.page=10&search.perPage=15&search.boardtype=L&ad=false"),
+                ("boardlist", f"https://apis.naver.com/cafe-web/cafe-boardlist-api/v1/cafes/{club_id}/menus/0/articles"
+                              "?page=10&pageSize=15&sortBy=TIME&viewType=L"),
+            ):
+                data = load_json_loose(show(s, name, api, f"https://cafe.naver.com/f-e/cafes/{club_id}/menus/0", raw=True))
+                print(f"      [{name} 조회수] {extract_read_counts(data) if data is not None else None}")
+                first = next((d for d in walk_dicts(data) if "readCount" in d), None) if data is not None else None
+                if first:
+                    print("      [첫 글] " + json.dumps({k: v for k, v in first.items() if not isinstance(v, (dict, list))},
+                                                     ensure_ascii=False)[:600])
+                for d in (d for d in walk_dicts(data) if "readCount" in d) if data is not None else []:
+                    flags = {k: d.get(k) for k in ("articleId", "readCount", "blindArticle", "delParent", "openArticle",
+                                                    "isDeleted", "deleted", "articleStatus") if k in d}
+                    print(f"      [글] {flags} {str(d.get('subject', ''))[:20]!r}")
+    finally:
+        engine.shutdown()
+
+
+# 지식iN 제목 칸 전체 · '조회' 글자가 든 요소의 부모 (svg 는 줄여서)
+_JS_KIN_DOM = r"""
+const out = [];
+const clean = (el, n) => el.outerHTML.replace(/<svg[\s\S]*?<\/svg>/g, '<svg/>').replace(/\s+/g, ' ').slice(0, n);
+const t = document.querySelector('.endTitleSection');
+if (t) out.push('[제목 DOM] ' + clean(t.parentElement || t, 1500));
+const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+let n, i = 0;
+while ((n = w.nextNode()) && i < 3) {
+  if (!n.textContent.includes('조회')) continue;
+  const p = n.parentElement.parentElement || n.parentElement;
+  out.push('[조회 DOM] ' + clean(p, 900));
+  i++;
+}
+return out;
+"""
+
+
+def inspect_kin(urls: list[str]) -> None:
+    """지식iN 제목 · 조회수 선택자가 화면에서 무엇을 잡는지, 조회수가 보이기까지 걸린 시간."""
+    print("\n=== 지식iN: 화면 선택자 ===")
+    settings = Settings(headless=True, keep_login=False, request_delay=0.5, page_timeout=15)
+    engine = Engine(settings, lambda msg: None)
+    sel = load_selectors()["kin"]
+    ctx = Context(engine.browser, engine.http, settings, load_selectors(), threading.Event(), lambda m: None)
+    try:
+        for url in urls:
+            print(f"- {url}")
+            page = ctx.page()
+            started = time.monotonic()
+            page.open(url, [])
+            found = page.wait_until(lambda: page.text(sel["views"], need_digit=True, contains=["조회"]) is not None,
+                                    timeout=15)
+            print(f"      조회수 선택자 {'찾음' if found else '못 찾음'} ({time.monotonic() - started:.1f}초)")
+            for line in page.driver.execute_script(_JS_DUMP, sel["title"] + sel["views"]) or []:
+                print(f"      · {line}")
+            for m in list(re.finditer(r".{0,40}조회.{0,30}", page.body_text()))[:5]:
+                print(f"      [본문] {m.group(0)!r}")
+            for line in page.driver.execute_script(_JS_KIN_DOM) or []:
+                print(f"      {line}")
+    finally:
+        engine.shutdown()
+
+
+def sample_deleted_cafe_urls(s: requests.Session, slug: str, count: int = 3) -> list[str]:
+    """카페 최신 글 목록에서 번호가 빠진 글(삭제됐을 가능성이 큰 글) 몇 개 + 아예 없는 번호."""
+    gate = load_json_loose(s.get(f"https://apis.naver.com/cafe-web/cafe2/CafeGateInfo.json?cluburl={slug}",
+                                 headers={"Referer": "https://cafe.naver.com/"}, timeout=15).text)
+    club_id = find_key(gate, ["cafeId", "clubId", "clubid"]) if gate else None
+    if not club_id:
+        print(f"  {slug}: 카페 ID 없음")
+        return []
+    data = load_json_loose(s.get(
+        f"https://apis.naver.com/cafe-web/cafe2/ArticleListV2dot1.json?search.clubid={club_id}"
+        "&search.queryType=lastArticle&search.page=1&search.perPage=50&search.boardtype=L&ad=false",
+        headers={"Referer": f"https://cafe.naver.com/f-e/cafes/{club_id}/menus/0"}, timeout=15).text)
+    seen = sorted({int(d["articleId"]) for d in walk_dicts(data) if "articleId" in d and "readCount" in d}, reverse=True)
+    gaps = [n for hi, lo in zip(seen, seen[1:]) for n in range(hi - 1, lo, -1)][:count]
+    print(f"  {slug}: 목록 {len(seen)}개, 빠진 번호 {gaps}")
+    return [f"https://cafe.naver.com/{slug}/{n}" for n in gaps] + ([f"https://cafe.naver.com/{slug}/{seen[0] * 10}"] if seen else [])
+
+
+def sample_kin_urls(s: requests.Session, count: int = 3) -> list[str]:
+    """지식iN 목록에서 질문 주소 몇 개 (인자로 'kin' 만 넣었을 때)."""
+    for page in ("https://kin.naver.com/qna/list.naver", "https://kin.naver.com/"):
+        try:
+            html = s.get(page, timeout=15).text
+        except requests.RequestException:
+            continue
+        found = []
+        for m in re.finditer(r"/qna/detail\.naver\?[^\"'\s<>]*?docId=\d+", html):
+            url = "https://kin.naver.com" + unescape(m.group(0))
+            if url not in found:
+                found.append(url)
+        if found:
+            return found[:count]
+    print("  지식iN 목록에서 질문 주소를 찾지 못했습니다")
+    return []
+
+
 def main(args: list[str]) -> None:
     s = requests.Session()
     s.headers.update({"User-Agent": DEFAULT_UA, "Accept-Language": "ko-KR,ko;q=0.9"})
-    cafes = [a for a in args if "cafe.naver.com" in a]
-    posts = [a for a in args if a.startswith("http") and a not in cafes]
+    kins = [a for a in args if "kin.naver.com" in a]
+    if "kin" in args:
+        kins += sample_kin_urls(s)
+    for a in [a for a in args if a.startswith("deleted:")]:
+        args += sample_deleted_cafe_urls(s, a.split(":", 1)[1])
+    args = [a for a in args if a != "kin" and "kin.naver.com" not in a and not a.startswith("deleted:")]
+    cafe_urls = [a for a in args if "cafe.naver.com" in a]
+    cafes = [a for a in cafe_urls if parse_cafe_url(a).article_id]
+    cafe_mains = [a for a in cafe_urls if a not in cafes]
+    posts = [a for a in args if a.startswith("http") and a not in cafe_urls]
     ids = [a for a in args if not a.startswith("http")]
+    if cafe_mains:
+        crawl("cafe_info", cafe_mains)
+        crawl("cafe_avg", cafe_mains)
+        inspect_cafe_main(s, cafe_mains)
+    if kins:
+        crawl("kin", kins)
+        inspect_kin(kins)
     if cafes:
         diagnose_cafe(s, cafes)
     if posts:

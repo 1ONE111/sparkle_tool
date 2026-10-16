@@ -57,6 +57,8 @@ _URL_RE = re.compile(
     re.I,
 )
 _URL_TRAIL = ".,;:!?…·~'\""
+# 띄어쓰기 없이 붙은 링크 (…/123https://…) 는 나눈다. ?url=https://… 같은 쿼리 값은 그대로 둔다
+_URL_JOINED = re.compile(r"(?<=[^=&?/:%])(?=https?://)", re.I)
 
 
 def extract_urls(text: str | None) -> list[str]:
@@ -70,9 +72,10 @@ def extract_urls(text: str | None) -> list[str]:
         if line.strip().startswith("#"):
             continue
         for match in _URL_RE.finditer(line):
-            url = normalize_url(match.group(0).rstrip(_URL_TRAIL))
-            if url:
-                urls.append(url)
+            for part in _URL_JOINED.split(match.group(0)):
+                url = normalize_url(part.rstrip(_URL_TRAIL))
+                if url:
+                    urls.append(url)
     return urls
 
 
