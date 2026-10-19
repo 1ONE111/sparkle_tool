@@ -31,8 +31,8 @@ namespace Raffle {
    var p = new GraphicsPath(); float d = rad * 2; if (d <= 0) { p.AddRectangle(r); return p; }
    p.AddArc(r.X, r.Y, d, d, 180, 90); p.AddArc(r.Right - d, r.Y, d, d, 270, 90); p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90); p.AddArc(r.X, r.Bottom - d, d, d, 90, 90); p.CloseFigure(); return p;
   }
-  public static Color SecColor(string sec) { return sec == "특별" ? Blue : sec == "선착순" ? Orange : sec == "제외" ? Red : Yellow; }
-  public static string SecName(string sec) { return sec == "특별" ? "특별 후보" : sec == "선착순" ? "선착순" : sec == "제외" ? "제외" : "직접 검토"; }
+  public static Color SecColor(string sec) { return sec == "특별" ? Blue : sec == "선착순" ? Orange : sec == "제외" ? Red : sec == "검토" ? Yellow : Color.FromArgb(200, 200, 206); }
+  public static string SecName(string sec) { return sec == "특별" ? "특별 후보" : sec == "선착순" ? "선착순" : sec == "제외" ? "제외" : sec == "검토" ? "직접 검토" : "확인 전"; }
   public static void Open(string target) { try { Process.Start(target); } catch { } }
  }
 
@@ -135,7 +135,7 @@ namespace Raffle {
   }
  }
  public class Tile : Control {
-  public string Label = "", Sec = ""; public int Count; public bool Selected; bool hover;
+  public string Label = "", Sec = ""; public int Count; public bool Selected, Blank; bool hover;
   public Tile(string label, string sec) { SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true); Label = label; Sec = sec; Cursor = Cursors.Hand; Height = 78; }
   protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); } protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); }
   protected override void OnPaint(PaintEventArgs e) {
@@ -144,7 +144,7 @@ namespace Raffle {
    using (var p = Th.Round(r, 12)) { using (var b = new SolidBrush(hover && !Selected ? Color.FromArgb(252, 252, 253) : Th.Card)) g.FillPath(b, p); if (Selected) using (var pen = new Pen(Th.Ink, 2)) g.DrawPath(pen, p); }
    using (var b = new SolidBrush(Th.SecColor(Sec))) g.FillEllipse(b, 17, 19, 8, 8);
    TextRenderer.DrawText(g, Label, Th.F(9.5f, true), new Point(29, 14), Th.Sub);
-   TextRenderer.DrawText(g, Count.ToString("#,##0"), Th.F(19, true), new Point(13, 34), Th.Ink);
+   TextRenderer.DrawText(g, Blank ? "-" : Count.ToString("#,##0"), Th.F(19, true), new Point(13, 34), Blank ? Color.FromArgb(200, 200, 206) : Th.Ink);
   }
  }
  public class Seg : Control {
@@ -338,7 +338,7 @@ namespace Raffle {
   }
   Control CopyRow(Post post) {
    FlowLayoutPanel acts; Label subL; var orig = post.CopyOf;
-   var p = RowBase(post.P.Nick, post.P.Id + " · " + post.P.No + "번 · " + (orig != null ? orig.P.Nick + " 글과 " + post.CopyPct + "% 같음" : "복붙의심"), out acts, out subL);
+   var p = RowBase(post.P.Nick, post.P.Id + " · " + post.P.No + "번 · " + (orig != null ? orig.P.Nick + " 글과 본문이 똑같음" : "복붙의심"), out acts, out subL);
    var wrap = new Panel { BackColor = Th.Card, Height = p.Height };
    p.Dock = DockStyle.Top; wrap.Controls.Add(p);
    var cmp = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 2, Height = 0, Visible = false, BackColor = Th.Card, Padding = new Padding(14, 0, 14, 12) };
@@ -386,7 +386,8 @@ namespace Raffle {
  public class MainForm : Form {
   public Settings Set; public History Hist; public List<Participant> Participants = new List<Participant>(); public Dictionary<string, Decision> Decisions = new Dictionary<string, Decision>();
   public bool CommentsChecked { get { return comments != null; } }
-  List<string> comments; string commentError = "", rawPath = "", eventName = "", baseOverride = null; DateTime checkedAt; bool busy; string filter = null;
+  List<string> comments; string commentError = "", rawPath = "", eventName = "", baseOverride = null, checkedCommentUrl = ""; DateTime checkedAt; bool busy, checkedOnce; string filter = null;
+  TextBox commentBox; Label commentState;
   readonly string dataDir;
   // 화면
   NavItem navMain, navHist, navSet; Panel content = new Panel(), pageEmpty = new Panel(), pageMain = new Panel(), pageHist = new Panel(), pageSet = new Panel();
@@ -435,7 +436,7 @@ namespace Raffle {
   // ── 처음 화면
   void BuildEmpty() {
    var head = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Th.Bg };
-   head.Controls.Add(Title("이벤트 정리")); head.Controls.Add(Sub("네이버폼 raw 파일 하나만 넣으면 시작해요."));
+   head.Controls.Add(Title("이벤트 정리")); head.Controls.Add(Sub("네이버폼 raw 파일을 넣고, 공식카페 이벤트 글 주소를 넣은 뒤 '확인 시작'을 눌러요."));
    var zone = new DropZone(); var pick = new Btn("파일 선택", Btn.K.Primary, () => PickRaw()).Big(); zone.Controls.Add(pick);
    zone.Resize += (s, e) => pick.Location = new Point((zone.Width - pick.Width) / 2, 206);
    zone.Click += (s, e) => PickRaw();
@@ -454,10 +455,11 @@ namespace Raffle {
    // 제목
    var head = new Panel { Dock = DockStyle.Fill, BackColor = Th.Bg, Margin = Padding.Empty };
    title = Title(""); title.AutoSize = false; title.AutoEllipsis = true; title.Height = 40; subtitle = Sub("");
-   recheck = new Btn("다시 확인", Btn.K.Gray, () => RunCheck()); recheck.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+   recheck = new Btn("확인 시작", Btn.K.Primary, () => StartCheck()).Big(); recheck.Anchor = AnchorStyles.Top | AnchorStyles.Right;
    var other = new Btn("다른 파일", Btn.K.Plain, () => PickRaw()); other.Anchor = AnchorStyles.Top | AnchorStyles.Right;
    head.Controls.Add(title); head.Controls.Add(subtitle); head.Controls.Add(recheck); head.Controls.Add(other);
-   head.Resize += (s, e) => { recheck.Location = new Point(head.Width - recheck.Width, 6); other.Location = new Point(recheck.Left - other.Width - 10, 6); title.Width = Math.Max(100, other.Left - 16); };
+   head.Resize += (s, e) => PlaceHeadButtons(head, other);
+   recheck.Resize += (s, e) => PlaceHeadButtons(head, other);
    t.Controls.Add(head, 0, 0);
    // 정보 세 줄
    var info = new Group { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 0) };
@@ -467,7 +469,16 @@ namespace Raffle {
    rowFile = info.AddRow(new Row("파일 이름", 100)); rowFile.Controls.Add(fileBox); fileBox.BringToFront(); rowFile.Add(fileEdit);
    rowFile.Resize += (s, e) => { fileBox.Location = new Point(116, 12); fileBox.Width = Math.Max(200, rowFile.Width - 116 - fileEdit.Width - 40); };
    rowPrize = info.AddRow(new Row("경품", 100)); rowPrize.Add(new Btn("수정", Btn.K.Link, () => EditPrize()));
-   rowComment = info.AddRow(new Row("댓글 확인", 100)); rowComment.Add(new Btn("수정", Btn.K.Link, () => EditComment()));
+   rowComment = info.AddRow(new Row("이벤트 글", 100));
+   commentBox = new TextBox { BorderStyle = BorderStyle.FixedSingle, BackColor = Th.Fill, Font = Th.F(9.5f) };
+   commentBox.HandleCreated += (s, e) => SendMessage(commentBox.Handle, 0x1501, (IntPtr)1, "공식카페 이벤트 글 주소를 붙여넣으세요  예) https://cafe.naver.com/ktmmobile20/58397");
+   commentBox.TextChanged += (s, e) => { Set.CommentUrl = commentBox.Text.Trim(); RefreshInfo(); };
+   commentBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; if (checkedOnce) ApplyComment(); else StartCheck(); } };
+   commentBox.Leave += (s, e) => { if (checkedOnce) ApplyComment(); };
+   commentState = new Label { AutoSize = true, ForeColor = Th.Sub, BackColor = Th.Card, Margin = new Padding(0, 6, 4, 0) };
+   rowComment.Val.Visible = false; rowComment.Controls.Add(commentBox); commentBox.BringToFront(); rowComment.Tools.Controls.Add(commentState);
+   rowComment.Resize += (s, e) => LayoutCommentBox();
+   rowComment.Tools.Resize += (s, e) => LayoutCommentBox();
    info.Height = 146; t.Controls.Add(info, 0, 1);
    // 진행
    progRow.Dock = DockStyle.Fill; progRow.BackColor = Th.Bg; prog.Location = new Point(0, 12); prog.Width = 300; progText.AutoSize = true; progText.ForeColor = Th.Sub; progText.Location = new Point(312, 6); progText.BackColor = Th.Bg;
@@ -535,6 +546,7 @@ namespace Raffle {
   }
   static string Why(Participant pa) {
    var parts = new List<string>();
+   if (pa.Section == "") return "";
    if (pa.Section == "제외") parts.Add(pa.Reason);
    else if (pa.Section == "검토") {
     foreach (var p in pa.Posts.Where(x => x.State == PState.Review)) parts.Add(p.Kind == RKind.Copy ? "복붙의심" : (p.Community != "" ? p.Community + " 직접 확인" : "직접 확인"));
@@ -554,9 +566,29 @@ namespace Raffle {
    string err; var list = RawReader.Read(path, out err);
    if (err != "") { MessageBox.Show(this, err, "추첨 도우미", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
    if (list.Count == 0) { MessageBox.Show(this, "응답이 없어요.", "추첨 도우미"); return; }
+   ShowReady(path, list);
+   commentBox.Text = ""; commentBox.Focus();
+  }
+  // raw만 넣은 상태: 아직 게시글을 확인하지 않는다. 이벤트 글 주소를 넣고 '확인 시작'을 누르면 시작.
+  void ShowReady(string path, List<Participant> list) {
    rawPath = path; eventName = RawReader.EventName(path); baseOverride = null; Participants = list; Decisions.Clear(); comments = null; commentError = ""; filter = null;
-   foreach (var x in new[] { tSp, tFc, tEx, tRv }) { x.Selected = false; x.Count = 0; x.Invalidate(); }
-   title.Text = eventName; Show(pageMain); RefreshInfo(); grid.Rows.Clear();
+   checkedOnce = false; checkedCommentUrl = ""; Set.CommentUrl = "";
+   foreach (var x in new[] { tSp, tFc, tEx, tRv }) { x.Selected = false; x.Count = 0; x.Blank = true; x.Invalidate(); }
+   title.Text = eventName; Show(pageMain);
+   subtitle.Text = "응답 " + list.Count + "명 · 게시글 " + list.Sum(p => p.Posts.Count) + "개 · 아직 확인 전";
+   SetRunButton(); exportBtn.Enabled = false; reviewBtn.Enabled = false; reviewBtn.Badge = ""; reviewBtn.FitWidth(); reviewBtn.Invalidate();
+   reviewNote.Location = new Point(reviewBtn.Right + 14, 26); reviewNote.Text = "공식카페 이벤트 글 주소를 넣고 '확인 시작'을 누르세요";
+   RefreshInfo(); FillGrid();
+  }
+  void SetRunButton() {
+   recheck.Text = checkedOnce ? "다시 확인" : "▶  확인 시작"; recheck.Kind = checkedOnce ? Btn.K.Gray : Btn.K.Primary; recheck.FitWidth(); recheck.Invalidate();
+  }
+  void PlaceHeadButtons(Panel head, Btn other) { recheck.Location = new Point(head.Width - recheck.Width, 2); other.Location = new Point(recheck.Left - other.Width - 10, 6); title.Width = Math.Max(100, other.Left - 16); }
+  void LayoutCommentBox() { int right = rowComment.Tools.Left - 12; commentBox.Location = new Point(116, 12); commentBox.Width = Math.Max(200, right - 116); }
+  void StartCheck() {
+   if (busy) return;
+   if (Participants.Count == 0) { PickRaw(); return; }
+   if (Set.CommentUrl == "" && MessageBox.Show(this, "공식카페 이벤트 글 주소가 비어 있어요.\n댓글 확인 없이 시작할까요?", "확인 시작", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) { commentBox.Focus(); return; }
    RunCheck();
   }
   public async void RunCheck() {
@@ -570,25 +602,30 @@ namespace Raffle {
     Parallel.ForEach(posts, new ParallelOptions { MaxDegreeOfParallelism = 4 }, p => { try { Fetcher.Fetch(p, set); } catch (Exception ex) { p.BaseState = PState.Review; p.BaseKind = RKind.Manual; p.ManualWhy = "자동 확인 실패 (" + ex.GetType().Name + ")"; } report(p.P.Nick); Thread.Sleep(120); });
     if (cUrl != "") { try { got = Cafe.CommentNicks(cUrl, out cerr); } catch (Exception ex) { cerr = ex.Message; } report("댓글"); }
    });
-   comments = cUrl != "" && cerr == "" ? got : null; commentError = cerr;
-   checkedAt = DateTime.Now; busy = false; SetBusy(false); Reanalyze();
+   comments = cUrl != "" && cerr == "" ? got : null; commentError = cerr; checkedCommentUrl = cUrl;
+   checkedAt = DateTime.Now; busy = false; checkedOnce = true; SetBusy(false); SetRunButton(); Reanalyze();
   }
-  public void LoadRawSync(string path) { string err; var list = RawReader.Read(path, out err); if (err != "") return; rawPath = path; eventName = RawReader.EventName(path); Participants = list; title.Text = eventName; Show(pageMain); RefreshInfo(); RunCheckSync(); }
-  public void RunCheckSync() {
+  // 개발 확인용: raw만 넣은 화면을 찍고, 주소를 넣어 끝까지 돌린다
+  public void LoadRawSync(string path, string url, string shotDir) {
+   string err; var list = RawReader.Read(path, out err); if (err != "") return;
+   ShowReady(path, list); commentBox.Text = "";
+   if (shotDir != null) { Directory.CreateDirectory(shotDir); Snap(Path.Combine(shotDir, "0_ready.png")); }
+   commentBox.Text = url ?? "";
    foreach (var p in Participants.SelectMany(x => x.Posts)) { try { Fetcher.Fetch(p, Set); } catch { } }
    if (Set.CommentUrl != "") { string cerr; comments = Cafe.CommentNicks(Set.CommentUrl, out cerr); commentError = cerr; if (cerr != "") comments = null; }
-   checkedAt = DateTime.Now; Reanalyze();
+   checkedCommentUrl = Set.CommentUrl; checkedAt = DateTime.Now; checkedOnce = true; exportBtn.Enabled = true; reviewBtn.Enabled = true; SetRunButton(); Reanalyze();
   }
+  void Snap(string file) { Application.DoEvents(); using (var bmp = new Bitmap(Width, Height)) { DrawToBitmap(bmp, new Rectangle(0, 0, Width, Height)); bmp.Save(file, ImageFormat.Png); } }
   void SetBusy(bool on) {
    var t = (TableLayoutPanel)pageMain.Controls.OfType<TableLayoutPanel>().First(); t.RowStyles[2].Height = on ? 30 : 0;
-   prog.Value = 0; progText.Text = on ? "게시글 확인 중…" : ""; recheck.Enabled = !on; exportBtn.Enabled = !on; reviewBtn.Enabled = !on;
+   prog.Value = 0; progText.Text = on ? "게시글 확인 중…" : ""; recheck.Enabled = !on; exportBtn.Enabled = !on; reviewBtn.Enabled = !on; commentBox.ReadOnly = on;
    subtitle.Text = on ? "응답 " + Participants.Count + "명 · 게시글 " + Participants.Sum(p => p.Posts.Count) + "개 · 확인 중…" : subtitle.Text;
   }
   public void Reanalyze() {
-   if (Participants.Count == 0) return;
+   if (Participants.Count == 0 || !checkedOnce) return;
    var sum = Engine.Analyze(Participants, Set, comments, Hist, Decisions, DateTime.Today);
    tSp.Count = sum.Special; tFc.Count = sum.First; tEx.Count = sum.Excluded; int rv = Engine.ReviewCount(Participants); tRv.Count = rv;
-   foreach (var x in new[] { tSp, tFc, tEx, tRv }) x.Invalidate();
+   foreach (var x in new[] { tSp, tFc, tEx, tRv }) { x.Blank = false; x.Invalidate(); }
    subtitle.Text = "응답 " + sum.Responses + "명 · 게시글 " + sum.Posts + "개 · " + checkedAt.ToString("MM-dd HH:mm") + " 확인";
    reviewBtn.Badge = rv > 0 ? rv.ToString() : ""; reviewBtn.FitWidth(); reviewBtn.Invalidate(); reviewNote.Location = new Point(reviewBtn.Right + 14, 26);
    reviewNote.Text = rv > 0 ? "직접 검토를 끝내야 엑셀에 정확히 들어가요" : "검토할 게 없어요";
@@ -599,6 +636,10 @@ namespace Raffle {
    grid.SuspendLayout(); grid.Rows.Clear();
    foreach (var pa in Participants.OrderBy(p => p.No)) {
     if (filter != null && pa.Section != filter) continue;
+    if (!checkedOnce) {
+     Uri u0; string host = pa.Posts.Count > 0 && Uri.TryCreate(pa.Posts[0].Url, UriKind.Absolute, out u0) ? u0.Host.Replace("www.", "") : "-";
+     int i0 = grid.Rows.Add(pa.No, pa.Nick, host + (pa.Posts.Count > 1 ? " 외 " + (pa.Posts.Count - 1) + "곳" : ""), "-", "-", "", ""); grid.Rows[i0].Tag = pa; continue;
+    }
     var valid = pa.Posts.Where(p => p.State == PState.Ok).ToList(); var shown = valid.Count > 0 ? valid : pa.Posts;
     string comm = shown.Count == 0 ? "-" : shown[0].Community + (shown.Count > 1 ? " 외 " + (shown.Count - 1) + "곳" : "");
     string views = valid.Count > 0 ? pa.Sum.ToString("#,##0") : (pa.Posts.Any(p => p.EffViews >= 0) ? pa.Posts.Max(p => p.EffViews).ToString("#,##0") : "-");
@@ -614,8 +655,13 @@ namespace Raffle {
   void RefreshInfo() {
    rowFile.Val.Text = BaseName() + "_" + DateTime.Today.ToString("yyMMdd") + ".xlsx";
    rowPrize.Val.Text = "특별 " + Set.SpecialCount + "명" + (Set.SpecialPrize != "" ? " " + Set.SpecialPrize : "") + "   ·   선착순 " + (Set.FirstCount > 0 ? Set.FirstCount + "명" : "인원 미정") + (Set.FirstPrize != "" ? " " + Set.FirstPrize : "");
-   if (Set.CommentUrl == "") { rowComment.Val.Text = "확인 안 함 · 공식카페 이벤트 글 주소를 넣으면 댓글 단 사람인지 확인해요"; rowComment.Val.ForeColor = Th.Sub; }
-   else { rowComment.Val.ForeColor = commentError != "" ? Th.Red : Th.Ink; rowComment.Val.Text = Set.CommentUrl.Replace("https://", "") + (commentError != "" ? " · " + commentError : comments != null ? " · 댓글 " + comments.Count + "개" : ""); }
+   string state; Color c = Th.Sub;
+   if (!checkedOnce) state = Set.CommentUrl == "" ? "댓글 단 사람인지 확인해요" : "";
+   else if (Set.CommentUrl != checkedCommentUrl) state = Set.CommentUrl == "" ? "Enter를 누르면 댓글 확인을 꺼요" : "Enter를 누르면 새 주소로 댓글을 읽어요";
+   else if (Set.CommentUrl == "") state = "댓글 확인 안 함";
+   else if (commentError != "") { state = commentError; c = Th.Red; }
+   else { state = "✓ 댓글 " + (comments != null ? comments.Count : 0) + "개"; c = Th.Green; }
+   commentState.Text = state; commentState.ForeColor = c; LayoutCommentBox();
   }
   void EditFileName() {
    if (!fileBox.Visible) { fileBox.Text = BaseName(); fileBox.Visible = true; rowFile.Val.Visible = false; fileEdit.Text = "완료"; fileEdit.FitWidth(); fileBox.Focus(); fileBox.SelectAll(); return; }
@@ -630,19 +676,19 @@ namespace Raffle {
    int n; if (Int32.TryParse(sc.Text.Trim(), out n)) Set.SpecialCount = n; Set.SpecialPrize = sp.Text.Trim();
    Set.FirstCount = Int32.TryParse(fc.Text.Trim(), out n) ? n : 0; Set.FirstPrize = fp.Text.Trim(); Set.Save(); RefreshInfo();
   }
-  async void EditComment() {
-   var a = new Ask("댓글 확인", "공식카페 이벤트 글 주소예요. 비우면 댓글 확인을 하지 않아요."); var u = a.Text1("글 주소", Set.CommentUrl);
-   if (!a.Run(this)) return;
-   Set.CommentUrl = u.Text.Trim(); Set.Save(); RemoveDecisions("cmt:");
-   if (Participants.Count == 0) return;
-   if (Set.CommentUrl == "") { comments = null; commentError = ""; Reanalyze(); return; }
-   rowComment.Val.Text = "댓글 읽는 중…"; string url = Set.CommentUrl, cerr = ""; List<string> got = null;
+  // 확인을 한 번 한 뒤 이벤트 글 주소만 바꾸면 댓글만 다시 읽는다
+  bool commentBusy;
+  async void ApplyComment() {
+   if (busy || commentBusy || !checkedOnce || Set.CommentUrl == checkedCommentUrl) return;
+   RemoveDecisions("cmt:"); string url = Set.CommentUrl;
+   if (url == "") { comments = null; commentError = ""; checkedCommentUrl = ""; Reanalyze(); return; }
+   commentBusy = true; commentState.Text = "댓글 읽는 중…"; commentState.ForeColor = Th.Sub; string cerr = ""; List<string> got = null;
    await Task.Run(() => { try { got = Cafe.CommentNicks(url, out cerr); } catch (Exception ex) { cerr = ex.Message; } });
-   comments = cerr == "" ? got : null; commentError = cerr; Reanalyze();
+   commentBusy = false; comments = cerr == "" ? got : null; commentError = cerr; checkedCommentUrl = url; Reanalyze();
   }
   void RemoveDecisions(string prefix) { foreach (var k in Decisions.Keys.Where(k => k.StartsWith(prefix)).ToList()) Decisions.Remove(k); }
   void OpenReview() {
-   if (busy || Participants.Count == 0) return;
+   if (busy || Participants.Count == 0 || !checkedOnce) return;
    using (var dim = new DimForm(this)) using (var sheet = new ReviewSheet(this)) {
     dim.Show(this);
     var area = RectangleToScreen(ClientRectangle);
@@ -652,7 +698,7 @@ namespace Raffle {
    Activate();
   }
   void Export() {
-   if (busy || Participants.Count == 0) return;
+   if (busy || Participants.Count == 0 || !checkedOnce) return;
    int rv = Engine.ReviewCount(Participants);
    if (rv > 0 && MessageBox.Show(this, "직접 검토가 " + rv + "건 남았어요.\n남은 건 지금 값으로 넣고 특이사항에 '직접 검토 남음'을 적어요. 저장할까요?", "엑셀 내보내기", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
    string folder = Set.SaveFolder != "" && Directory.Exists(Set.SaveFolder) ? Set.SaveFolder : Path.GetDirectoryName(rawPath);
@@ -812,7 +858,7 @@ namespace Raffle {
    NumRow(g2, "글 최소 조회수", Set.MinViews, "이상", v => Set.MinViews = v);
    NumRow(g2, "카페 가입자 수", Set.MinMembers, "명 이하는 제외", v => Set.MinMembers = v);
    NumRow(g2, "선착순 제외 기간", Set.BlackMonths, "개월 (선착순 당첨 이력)", v => Set.BlackMonths = v);
-   NumRow(g2, "복붙의심", Set.CopyPercent, "% 이상 같은 글", v => Set.CopyPercent = Math.Max(50, Math.Min(100, v)));
+   g2.AddRow(new Row("복붙의심", 150)).Val.Text = "본문이 100% 같은 글만 (띄어쓰기·줄바꿈 차이는 무시)";
    col.Controls.Add(g2);
    col.Controls.Add(hint("같은 커뮤니티에 글을 2개 이상 냈으면 조회수가 많은 글 1개만 인정하고 나머지는 '커뮤니티 중복'으로 빼요."));
    // 사이트
@@ -882,7 +928,7 @@ namespace Raffle {
    if (args.Length >= 3 && args[0] == "--shot") {
     var f = new MainForm(null) { StartPosition = FormStartPosition.Manual, Location = new Point(-4000, -4000), ShowInTaskbar = false };
     if (args.Length > 3) f.Set.CommentUrl = args[3];
-    f.Show(); f.LoadRawSync(args[1]); f.Shot(args[2]); f.Close(); return;
+    f.Show(); f.LoadRawSync(args[1], args.Length > 3 ? args[3] : "", args[2]); f.Shot(args[2]); f.Close(); return;
    }
    Application.Run(new MainForm(args.Length > 0 && File.Exists(args[0]) ? args[0] : null));
   }

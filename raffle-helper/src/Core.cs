@@ -93,7 +93,7 @@ namespace Raffle {
   public Participant P; public int Seq;
   public string Url = "", FinalUrl = "", Community = "", CommKey = "", ArticleKey = "", Site = "";
   public int Views = -1; public long Members = -1; public DateTime? Written;
-  public string Norm = ""; public int TextLen; public bool HasLink, HasImage, HasTable, Analyzed; public string Quality = "", Excerpt = ""; public List<string> Links = new List<string>();
+  public string Norm = "", Exact = ""; public int TextLen; public bool HasLink, HasImage, HasTable, Analyzed; public string Quality = "", Excerpt = ""; public List<string> Links = new List<string>();
   public PState BaseState = PState.Ok; public string BaseReason = ""; public RKind BaseKind = RKind.None; public string ManualWhy = "";
   // Analyze가 매번 다시 채우는 값
   public PState State; public string Reason = ""; public RKind Kind; public Post CopyOf; public int CopyPct;
@@ -403,6 +403,7 @@ namespace Raffle {
    p.Excerpt = Regex.Replace(plain, @"\s*\n\s*", " ").Trim(); if (p.Excerpt.Length > 400) p.Excerpt = p.Excerpt.Substring(0, 400) + "…";
    p.TextLen = Regex.Replace(plain, @"\s", "").Length;
    p.Norm = Regex.Replace(plain.ToLowerInvariant(), @"[\s\p{P}\p{S}]", "");
+   p.Exact = Regex.Replace(plain, @"\s", "");
    p.Quality = Quality(p.HasLink, p.HasImage, p.HasTable);
   }
   public static bool HasLink(List<string> links, string prefix) { string want = NormLink(prefix); if (want == "" || links == null) return false; foreach (var l in links) if (l.StartsWith(want)) return true; return false; }
@@ -427,7 +428,7 @@ namespace Raffle {
  public static class Fetcher {
   public static void Fetch(Post p, Settings set) {
    p.BaseState = PState.Ok; p.BaseReason = ""; p.BaseKind = RKind.None; p.ManualWhy = ""; p.Views = -1; p.Members = -1; p.Written = null;
-   p.Quality = ""; p.HasLink = false; p.HasImage = false; p.HasTable = false; p.Analyzed = false; p.Links = new List<string>(); p.TextLen = 0; p.Norm = ""; p.Excerpt = ""; p.Grams = null;
+   p.Quality = ""; p.HasLink = false; p.HasImage = false; p.HasTable = false; p.Analyzed = false; p.Links = new List<string>(); p.TextLen = 0; p.Norm = ""; p.Exact = ""; p.Excerpt = ""; p.Grams = null;
    string url = p.Url;
    Uri u; if (!Uri.TryCreate(url, UriKind.Absolute, out u)) { Manual(p, "주소를 읽을 수 없어요", "확인 필요"); return; }
    string host = u.Host.ToLowerInvariant();
@@ -595,15 +596,12 @@ namespace Raffle {
     Post f; if (firstByKey.TryGetValue(p.Key, out f)) { p.State = PState.Excluded; p.Reason = "중복 게시글" + (f.P == pa ? "" : " (" + f.P.No + "번과 같은 글)"); }
     else firstByKey[p.Key] = p;
    }
-   // 3) 복붙의심: 먼저 올라온 글은 그대로, 나중 글만 검토
-   var cand = all.Where(p => p.State == PState.Ok && p.Norm.Length >= 40).OrderBy(p => p.Written ?? DateTime.MaxValue).ThenBy(p => p.P.No).ThenBy(p => p.Seq).ToList();
-   foreach (var p in cand) if (p.Grams == null) p.Grams = Content.Grams(p.Norm);
-   for (int j = 1; j < cand.Count; j++) {
-    for (int i = 0; i < j; i++) {
-     int sim = Content.Similarity(cand[i].Grams, cand[j].Grams);
-     if (sim >= set.CopyPercent) { cand[j].CopyOf = cand[i]; cand[j].CopyPct = sim; break; }
-    }
-    var p = cand[j]; if (p.CopyOf == null) continue;
+   // 3) 복붙의심: 본문이 100% 같은 글만(띄어쓰기·줄바꿈 차이는 무시). 먼저 올라온 글은 그대로, 나중 글만 검토
+   var cand = all.Where(p => p.State == PState.Ok && p.Exact.Length >= 10).OrderBy(p => p.Written ?? DateTime.MaxValue).ThenBy(p => p.P.No).ThenBy(p => p.Seq).ToList();
+   var firstByText = new Dictionary<string, Post>();
+   for (int j = 0; j < cand.Count; j++) {
+    Post orig; if (!firstByText.TryGetValue(cand[j].Exact, out orig)) { firstByText[cand[j].Exact] = cand[j]; continue; }
+    var p = cand[j]; p.CopyOf = orig; p.CopyPct = 100;
     Decision d;
     if (dec.TryGetValue("copy:" + p.Key, out d)) { p.Decided = true; if (!d.Accept) { p.State = PState.Excluded; p.Reason = "복붙의심"; } }
     else { p.State = PState.Review; p.Kind = RKind.Copy; }
