@@ -228,7 +228,7 @@ const Tx = {
   red: s => s ? RO + s + RC : "",
   plain: s => (s || "").split(RO).join("").split(RC).join(""),
   n2: s => (s || "").replace(/[^\p{L}\p{N}]/gu, "").toLowerCase(),
-  clean: s => (s || "").replace(/[​﻿]/g, "").replace(/\s+/g, " ").trim(),
+  clean: s => (s || "").replace(/[\u200B\uFEFF]/g, "").replace(/\s+/g, " ").trim(),
   cut(s, n) { s = Tx.clean(s); return s.length <= n ? s : s.slice(0, n) + "…"; },
   bigrams(a) { const d = new Map(); for (let i = 0; i < a.length - 1; i++) { const k = a.substr(i, 2); d.set(k, (d.get(k) || 0) + 1); } return d; },
   inter(da, b) { const d = new Map(da); let n = 0; for (let i = 0; i < b.length - 1; i++) { const k = b.substr(i, 2), v = d.get(k); if (v > 0) { n++; d.set(k, v - 1); } } return n; },
@@ -410,7 +410,7 @@ function markUrl(post, doc) {
   return post.length - p - s <= 0 ? post : post.slice(0, p) + Tx.red(post.slice(p, post.length - s)) + post.slice(post.length - s);
 }
 const DUP_OK = new Set("너무 정말 진짜 아주 많이 빨리 천천히 하나 계속 자꾸 다시 조금 살짝 반짝 차근 하하 호호 헤헤 히히 두근 콩닥 엉엉 냠냠 쑥쑥 쭉쭉 최고 짱".split(" "));
-const isBroken = c => (c >= "À" && c <= "ÿ" && c !== "×" && c !== "÷") || c === "�" || (c >= "" && c <= "");
+const isBroken = c => (c >= "À" && c <= "ÿ" && c !== "×" && c !== "÷") || c === "\uFFFD" || (c >= "\uF000" && c <= "\uF0FF");
 
 // 원고에만 있는 것 ↔ 캡션에만 있는 것을 가장 비슷한 쌍부터 짝짓는다 (비슷함 0.5 이상만 오타로 본다)
 function pairUp(miss, extra, key) {
@@ -759,7 +759,7 @@ function readFinal() {
     }
   };
   visit($("final"), false);
-  return out.split(RC + RO).join("").replace(/ /g, " ").replace(/\n+$/, "");
+  return out.split(RC + RO).join("").replace(/\u00A0/g, " ").replace(/\n+$/, "");
 }
 function syncFinal() { const r = sel(); if (!r) return; r.final = readFinal(); if (!Tx.clean(Tx.plain(r.final))) r.final = r.res ? "" : null; renderRows(); save(); }
 
