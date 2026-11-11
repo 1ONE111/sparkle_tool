@@ -1,0 +1,925 @@
+<!doctype html>
+<title>원고 검수기 인스타</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+<style>
+/* 원고 검수기(블로그) 와 같은 계열: 흰 사이드 + 연회색 바탕, 검정 주 버튼, 주황 강조 */
+:root {
+  --bg: #f2f2f8; --card: #ffffff; --ink: #1e1e20; --muted: #7e7e87; --line: #ebebf3; --soft: #efeff4;
+  --field: #f6f6fa; --accent: #ff681a; --accent-soft: #fff1e8; --sel: #fff4ec;
+  --ok: #258545; --ok-bg: #e1f5e9; --bad: #d63031; --bad-bg: #ffe7e4; --warn: #c46200; --warn-bg: #fff0de;
+  --red-text: #e60000; --on-ink: #ffffff;
+  --sans: "Noto Sans KR", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141417; --card: #1d1d21; --ink: #ececf1; --muted: #9a9aa6; --line: #2c2c33; --soft: #2a2a31;
+  --field: #24242a; --accent: #ff7a33; --accent-soft: #3a2518; --sel: #2d221b;
+  --ok: #5fd08a; --ok-bg: #173323; --bad: #ff7b72; --bad-bg: #3d1d1c; --warn: #ffae5c; --warn-bg: #3a2814;
+  --red-text: #ff5a52; --on-ink: #141417; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141417; --card: #1d1d21; --ink: #ececf1; --muted: #9a9aa6; --line: #2c2c33; --soft: #2a2a31;
+  --field: #24242a; --accent: #ff7a33; --accent-soft: #3a2518; --sel: #2d221b;
+  --ok: #5fd08a; --ok-bg: #173323; --bad: #ff7b72; --bad-bg: #3d1d1c; --warn: #ffae5c; --warn-bg: #3a2814;
+  --red-text: #ff5a52; --on-ink: #141417; color-scheme: dark }
+* { box-sizing: border-box }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 16px; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; border-radius: 9px; background: var(--soft); color: var(--ink); font-weight: 700; font-size: 13px; padding: 7px 12px; white-space: nowrap; }
+button:hover { filter: brightness(0.96); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, [contenteditable]:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+.btn-ink { background: var(--ink); color: var(--on-ink); }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-text { background: transparent; color: var(--accent); padding: 4px 6px; }
+.btn-big { padding: 12px 22px; font-size: 15px; border-radius: 10px; }
+
+header.top { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.mark { width: 40px; height: 40px; border-radius: 9px; background: #1e1e20; position: relative; flex: none; overflow: hidden; }
+.mark i { position: absolute; width: 17px; height: 21px; border-radius: 2px; }
+.mark i:first-child { left: 6px; top: 6px; background: #ff681a; transform: rotate(-10deg); }
+.mark i:last-child { left: 16px; top: 13px; background: #fff; transform: rotate(6deg); }
+.mark i:last-child::before { content: ""; position: absolute; left: 3px; right: 4px; top: 6px; height: 2px; background: #cdcdd6; box-shadow: 0 4px 0 #cdcdd6, 0 8px 0 #cdcdd6; }
+.titles { flex: 1 1 320px; min-width: 0; }
+h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; text-wrap: balance; }
+h1 small { font-size: 13px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 99px; vertical-align: 5px; margin-left: 6px; letter-spacing: 0; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
+.card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.card-head h2 { font-size: 15px; margin: 0 8px 0 0; font-weight: 800; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; justify-content: center; min-width: 58px; padding: 3px 10px; border-radius: 9px; font-size: 12px; font-weight: 700; background: var(--soft); color: var(--muted); white-space: nowrap; }
+.pill.all { background: var(--ink); color: var(--on-ink); }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.err { background: var(--warn-bg); color: var(--warn); }
+.pill.ex { min-width: 0; padding: 1px 7px; font-size: 11px; background: var(--accent-soft); color: var(--accent); }
+
+.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; font-size: 13px; }
+.help h3 { font-size: 13px; margin: 0 0 6px; }
+.help ol { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.legend { width: 100%; border-collapse: collapse; }
+.legend td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.legend td:first-child { white-space: nowrap; font-weight: 700; }
+.mk-del { color: var(--red-text); text-decoration: line-through; }
+.mk-fix { background: #fff200; color: #1e1e20; padding: 0 3px; }
+.mk-memo { background: #6ee7ff; color: #1e1e20; padding: 0 3px; }
+
+.notice { font-size: 13px; background: var(--accent-soft); color: var(--ink); border-radius: 9px; padding: 8px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.rows { display: flex; flex-direction: column; }
+.grid { display: grid; grid-template-columns: 34px minmax(90px, 1fr) minmax(150px, 1.5fr) minmax(150px, 1.5fr) minmax(120px, 1.1fr) 78px 72px 30px; gap: 8px; align-items: center; }
+.rows-head { font-size: 12px; color: var(--muted); padding: 4px 8px; }
+.row { padding: 8px; border-bottom: 1px solid var(--line); border-radius: 8px; cursor: default; }
+.row.sel { background: var(--sel); }
+.row .no { text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.row input[type=text] { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--field); border-radius: 7px; padding: 6px 8px; font-size: 13px; }
+.name-cell { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.doc-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.doc-name { font-size: 12px; line-height: 1.35; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; }
+.doc-name.empty { color: var(--muted); }
+.cap-btn { width: 100%; text-align: left; font-weight: 500; font-size: 12px; background: var(--field); border: 1px dashed var(--line); overflow: hidden; text-overflow: ellipsis; }
+.cap-btn.filled { border-style: solid; color: var(--ink); }
+.cap-btn.empty { color: var(--accent); font-weight: 700; }
+.del { background: transparent; color: var(--muted); font-size: 16px; padding: 2px 6px; }
+.list-foot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.sheet-field { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.sheet-field input { width: 92px; border: 1px solid var(--line); background: var(--field); border-radius: 7px; padding: 6px 8px; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+.detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 0.95fr); gap: 14px; }
+.pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pane-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 32px; }
+.pane-head b { font-size: 14px; }
+.pane-head .meta { font-size: 12px; color: var(--muted); }
+textarea#caption { width: 100%; min-height: 300px; resize: vertical; border: 1px solid var(--line); background: var(--field); border-radius: 9px; padding: 10px 12px; font-size: 13px; line-height: 1.6; }
+#final { min-height: 300px; border: 1px solid var(--line); background: var(--field); border-radius: 9px; padding: 10px 12px; font-size: 13px; font-weight: 700; line-height: 1.7; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+#final:empty::before { content: attr(data-empty); color: var(--muted); font-weight: 400; }
+#final font[color], #final .r { color: var(--red-text); }
+#final font[color="#1e1e20"] { color: var(--ink); }
+.notes { list-style: none; margin: 0; padding: 6px; min-height: 300px; border: 1px solid var(--line); background: var(--field); border-radius: 9px; font-size: 12.5px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.notes li { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.notes li:hover { background: var(--soft); }
+.notes li.empty { color: var(--muted); cursor: default; }
+.notes li .add { float: right; color: var(--accent); font-weight: 700; font-size: 11px; margin-left: 6px; }
+.stats { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats .over { color: var(--bad); font-weight: 700; }
+.foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.r { color: var(--red-text); }
+
+#drop { position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 55%, transparent); color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 800; z-index: 50; pointer-events: none; }
+#toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--on-ink); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; z-index: 60; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.18); }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+@media (max-width: 960px) {
+  .rows-head { display: none; }
+  .grid { grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr); }
+  .row .no { grid-row: span 3; align-self: start; padding-top: 6px; }
+  .row .name-cell { grid-column: 2 / 4; }
+  .row .doc-cell, .row .link-cell { grid-column: 2 / 4; }
+  .row .cap-cell { grid-column: 2 / 3; }
+  .row .chk-cell { grid-column: 3 / 4; display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+  .row .badge-cell, .row .del-cell { display: none; }
+  .detail { grid-template-columns: minmax(0, 1fr); }
+  textarea#caption, #final, .notes { min-height: 180px; }
+}
+@media (min-width: 961px) { .row .chk-cell .mini { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="mark" aria-hidden="true"><i></i><i></i></div>
+    <div class="titles">
+      <h1>원고 검수 <small>인스타</small></h1>
+      <p class="sub">원고(.docx)를 넣고 인스타 캡션을 붙여넣으면, 원고에 표시한 수정 사항이 캡션에 반영됐는지 바로 확인해요.</p>
+    </div>
+    <button id="helpBtn" aria-expanded="false" aria-controls="help">사용 방법</button>
+  </header>
+
+  <section class="card" id="help" hidden>
+    <div class="help">
+      <div>
+        <h3>순서</h3>
+        <ol>
+          <li>원고(.docx)를 창에 끌어다 놓거나 <b>원고 여러 개 넣기</b>. 이름은 파일 이름 끝의 닉네임으로 채워져요 (예: <span class="stats">…원고_닉네임_검수.docx</span>).</li>
+          <li>인스타 게시물 · 릴스 링크를 넣어요. 링크 여러 줄을 한 칸에 붙여넣으면 아래 행으로 나눠 들어가요.</li>
+          <li>행을 고르고 아래 <b>캡션</b> 칸에 인스타 캡션을 붙여넣어요. 첫 댓글에 해시태그를 달았다면 그것도 함께 붙여넣어요.</li>
+          <li>붙여넣으면 바로 검수돼요. <b>수정사항</b>에서 문구를 고치고, 글자를 드래그해 <b>빨간 글씨</b>로 바꾸면 엑셀에서도 빨간색이에요. <b>참고</b> 항목은 누르면 수정사항에 추가돼요.</li>
+          <li><b>엑셀 내보내기</b>: 시트 이름(게시일) 시트의 B2부터 순서 · 이름 · URL · 수정사항. 수정사항이 있는 행은 이름 칸이 빨간색이에요.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>원고에서 읽는 표시</h3>
+        <table class="legend">
+          <tr><td><span class="mk-del">빨간 취소선</span></td><td>캡션에 남아 있으면 <b>삭제 미반영</b></td></tr>
+          <tr><td><span class="mk-fix">노란 형광펜</span></td><td>고친 문구가 캡션에 없으면 <b>수정 미반영</b> · <b>오타 수정 미반영</b></td></tr>
+          <tr><td><span class="mk-memo">하늘색 형광펜</span> · <span class="r">※ 안내문</span></td><td>검수 메모. 캡션에 그대로 남아 있으면 지적</td></tr>
+          <tr><td>워드 변경 내용 추적</td><td>삭제 · 추가 기록도 같은 방식으로 확인</td></tr>
+        </table>
+        <p class="stats" style="margin:8px 0 0">함께 보는 것: 해시태그 누락 · 오타, @멘션 누락 · 오타, 링크, 숫자 다름, 깨진 글자(à 등), 같은 단어 두 번, 캡션 2,200자 · 해시태그 30개 한도. 캡션에 없는 원고 문장(영상 · 이미지에 넣은 문구일 수 있음)은 참고로만 보여 줘요.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="listTitle">
+    <div class="card-head">
+      <h2 id="listTitle">검수 목록</h2>
+      <span class="pill all" id="cAll">총 0</span>
+      <span class="pill ok" id="cOk">일치 0</span>
+      <span class="pill bad" id="cBad">불일치 0</span>
+      <span class="spacer"></span>
+      <button class="btn-text" id="addFiles">원고 여러 개 넣기</button>
+      <button class="btn-text" id="pasteLinks">링크 여러 개 붙여넣기</button>
+      <span id="clearBox"><button class="btn-text" id="clearAll">모두 비우기</button></span>
+    </div>
+    <div class="notice" id="exampleNote" hidden>예시 데이터예요. 원고를 넣으면 예시 행은 사라져요. <button class="btn-text" id="clearEx">예시 지우기</button></div>
+    <div class="grid rows-head" aria-hidden="true"><span>No</span><span>이름</span><span>원고 파일</span><span>인스타 링크</span><span>캡션</span><span></span><span>결과</span><span></span></div>
+    <div class="rows" id="rows"></div>
+    <div class="list-foot">
+      <button id="addRow" style="background:var(--accent-soft);color:var(--accent)">+ 추가하기</button>
+      <span class="spacer"></span>
+      <label class="sheet-field" for="sheetName">시트 이름(게시일) <input type="text" id="sheetName" inputmode="decimal" autocomplete="off"></label>
+      <button class="btn-ink btn-big" id="runAll">▶ 전체 검수</button>
+      <button class="btn-accent btn-big" id="export">엑셀 내보내기</button>
+    </div>
+    <input type="file" id="fileInput" accept=".docx" multiple hidden>
+  </section>
+
+  <section class="card" aria-label="선택한 행 검수">
+    <div class="detail">
+      <div class="pane">
+        <div class="pane-head"><b>캡션</b><span class="meta" id="capMeta">행을 고르세요</span></div>
+        <textarea id="caption" placeholder="인스타 게시물 캡션을 여기에 붙여넣으세요.&#10;붙여넣으면 바로 검수해요." spellcheck="false"></textarea>
+        <div class="stats" id="capStats">0자 · 해시태그 0개 · 멘션 0개</div>
+      </div>
+      <div class="pane">
+        <div class="pane-head"><b>수정사항</b><span class="meta" id="finalMeta"></span>
+          <span class="spacer"></span>
+          <button id="mkRed" style="color:var(--red-text)">빨간 글씨</button>
+          <button id="mkBlack">검정 글씨</button>
+          <button id="mkOk">이상 없음</button>
+          <a id="openPost" class="pill" style="text-decoration:none;color:var(--ink);font-size:13px;padding:7px 12px" target="_blank" rel="noopener">인스타 열기</a>
+        </div>
+        <div id="final" contenteditable="true" spellcheck="false" data-empty="검수하면 여기에 수정사항이 나와요." aria-label="수정사항"></div>
+      </div>
+      <div class="pane">
+        <div class="pane-head"><b>참고</b><span class="meta">누르면 수정사항에 추가</span></div>
+        <ul class="notes" id="notes"><li class="empty">확실하지 않은 차이가 여기에 나와요.</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot"><span id="status">원고 0개 · 캡션 0개</span><span>원고와 캡션은 이 브라우저 안에서만 읽고 저장해요.</span></div>
+</div>
+<div id="drop" hidden>원고(.docx)를 놓으세요</div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+"use strict";
+// ───────────────────────── 텍스트 도구 (원고검수기 Tx 와 같은 규칙)
+const RO = "⟦", RC = "⟧"; // 엑셀에서 빨간 글씨가 될 부분
+const Tx = {
+  red: s => s ? RO + s + RC : "",
+  plain: s => (s || "").split(RO).join("").split(RC).join(""),
+  n2: s => (s || "").replace(/[^\p{L}\p{N}]/gu, "").toLowerCase(),
+  clean: s => (s || "").replace(/[​﻿]/g, "").replace(/\s+/g, " ").trim(),
+  cut(s, n) { s = Tx.clean(s); return s.length <= n ? s : s.slice(0, n) + "…"; },
+  bigrams(a) { const d = new Map(); for (let i = 0; i < a.length - 1; i++) { const k = a.substr(i, 2); d.set(k, (d.get(k) || 0) + 1); } return d; },
+  inter(da, b) { const d = new Map(da); let n = 0; for (let i = 0; i < b.length - 1; i++) { const k = b.substr(i, 2), v = d.get(k); if (v > 0) { n++; d.set(k, v - 1); } } return n; },
+  dice(a, b) { if (a.length < 2 || b.length < 2) return a === b ? 1 : 0; return 2 * Tx.inter(Tx.bigrams(a), b) / (a.length - 1 + b.length - 1); },
+  // 캡션 쪽이 원고 문장보다 길어도(줄을 합쳐 쓴 경우) 1.5배까지는 감점하지 않는 유사도
+  sim(da, alen, b) { if (alen < 2 || b.length < 2) return 0; const den = (alen - 1) + Math.min(b.length - 1, 1.5 * (alen - 1)); return Math.min(1, 2 * Tx.inter(da, b) / den); },
+  lev(a, b) { if (a.length > 200 || b.length > 200) return 999; let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) { const cur = [i]; for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[b.length]; },
+  words: s => { const c = Tx.clean(s); return c ? c.split(" ") : []; },
+  lastWords(s, n) { const w = Tx.words(s); return w.slice(Math.max(0, w.length - n)).join(" "); },
+  firstWords(s, n) { return Tx.words(s).slice(0, n).join(" "); },
+  j: (...xs) => xs.filter(x => x).join(" "),
+  circled: i => i < 20 ? String.fromCharCode(0x2460 + i) : "(" + (i + 1) + ")",
+  sentences: s => (s || "").split(/(?<=[.!?~])\s+|\n/).map(Tx.clean).filter(x => x.length > 0),
+  josa(w, batchim, none) { if (!w) return none; const c = w.charCodeAt(w.length - 1); if (c < 0xAC00 || c > 0xD7A3) return none; return (c - 0xAC00) % 28 > 0 ? batchim : none; },
+};
+
+// ───────────────────────── 원고(.docx) 읽기
+// seg.k: k 본문, d 삭제 표시, f 수정 문구, m 메모, s 표 안 취소선(정가), r 빨간 글씨(판정 전)
+const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main", RNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const PH = /[\(\[<（【]\s*[^\(\)\[\]<>（）【】]{0,60}?(예정|자리|배치|첨부|삽입|넣어|들어갈)[^\(\)\[\]<>（）【】]{0,40}[\)\]>）】]/g;
+const NOTE_RX = /부탁|교체|삽입해|수정해|삭제해|확인하시어|번거롭|양해|죄송|자리|예정|첨부|가이드 내|넣어 ?주|반영해/;
+const stripPh = s => (s || "").replace(PH, " ");
+const P = {
+  of: (p, ...ks) => p.segs.filter(s => ks.includes(s.k)).map(s => s.t).join(""),
+  exp: p => stripPh(P.of(p, "k", "f", "s")),
+  has: (p, k) => p.segs.some(s => s.k === k && Tx.n2(s.t).length > 0),
+};
+function nameFromFile(file) {
+  let b = (file || "").replace(/\.[^.]+$/, "");
+  for (let i = 0; i < 3; i++) b = b.replace(/[\s_\-]*(\(\d+\)|검수본?|최종본?|수정본?|완료|v\d+)$/i, "").trim();
+  const parts = b.split("_").map(x => x.trim()).filter(x => x);
+  return parts.length ? parts[parts.length - 1] : b;
+}
+async function unzip(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf); let e = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65558); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error("워드(.docx) 원고가 아니에요. .doc 파일이면 워드에서 .docx로 다시 저장해 주세요.");
+  const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true); const files = {};
+  for (let k = 0; k < n && dv.getUint32(p, true) === 0x02014b50; k++) {
+    const nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
+    files[new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl))] = { method: dv.getUint16(p + 10, true), size: dv.getUint32(p + 20, true), lo: dv.getUint32(p + 42, true) };
+    p += 46 + nl + xl + cl;
+  }
+  return async name => {
+    const f = files[name]; if (!f) return null;
+    const start = f.lo + 30 + dv.getUint16(f.lo + 26, true) + dv.getUint16(f.lo + 28, true), data = u8.slice(start, start + f.size);
+    if (f.method === 0) return new TextDecoder().decode(data);
+    const out = await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer();
+    return new TextDecoder().decode(out);
+  };
+}
+const kids = (n, local) => [...n.childNodes].filter(c => c.nodeType === 1 && c.localName === local);
+const wa = (el, a) => el.getAttributeNS(W, a) || el.getAttribute("w:" + a) || "";
+function under(n, stop, local) { for (let x = n.parentNode; x && x !== stop; x = x.parentNode) if (x.localName === local) return true; return false; }
+function sym(hex) { let v = parseInt(hex, 16); if (isNaN(v)) return " "; v &= 0xFF; return v === 0xE0 || v === 0xE8 ? "→" : v === 0xDF ? "←" : v === 0xE1 ? "↑" : v === 0xE2 ? "↓" : " "; }
+const wing = s => s.replace(/[àè]/g, "→").replace(/ß/g, "←").replace(/á/g, "↑").replace(/â/g, "↓");
+function kind(rPr, inTable, del, ins) {
+  if (del) return "d";
+  let strike = false, hl = "", col = "", shd = "";
+  if (rPr) {
+    for (const s of [...rPr.children].filter(c => c.localName === "strike" || c.localName === "dstrike")) { const v = wa(s, "val"); if (v !== "0" && v !== "false" && v !== "off") strike = true; }
+    const h = kids(rPr, "highlight")[0]; if (h) hl = wa(h, "val");
+    const c = kids(rPr, "color")[0]; if (c) col = wa(c, "val").toUpperCase();
+    const sh = kids(rPr, "shd")[0]; if (sh) shd = wa(sh, "fill").toUpperCase();
+  }
+  const red = col === "EE0000" || col === "FF0000";
+  if (hl === "cyan" || shd === "00FFFF") return "m";
+  if (strike) return (red || !inTable) ? "d" : "s";
+  if (red) return "r";
+  if (hl === "yellow" || shd === "FFFF00" || ins) return "f";
+  return "k";
+}
+function readPara(p, inTable, rels, m) {
+  const dp = { segs: [], inTable };
+  for (const r of p.getElementsByTagNameNS(W, "r")) {
+    if (under(r, p, "Fallback")) continue;
+    const del = under(r, p, "del") || under(r, p, "moveFrom"), ins = under(r, p, "ins") || under(r, p, "moveTo");
+    const rPr = kids(r, "rPr")[0]; let isWing = false;
+    if (rPr) { const f = kids(rPr, "rFonts")[0]; if (f) isWing = /wingdings/i.test(wa(f, "ascii") + wa(f, "hAnsi") + wa(f, "cs")); }
+    let t = "";
+    for (const ch of r.childNodes) {
+      if (ch.nodeType !== 1) continue;
+      switch (ch.localName) {
+        case "t": case "delText": t += isWing ? wing(ch.textContent) : ch.textContent; break;
+        case "tab": case "cr": t += " "; break;
+        case "br": t += "\n"; break;
+        case "noBreakHyphen": t += "-"; break;
+        case "sym": t += sym(wa(ch, "char")); break;
+      }
+    }
+    if (!t) continue;
+    dp.segs.push({ t, k: kind(rPr, inTable, del, ins) });
+  }
+  // 빨간 글씨는 검수 메모처럼 보이면 메모, 아니면 본문
+  const red = dp.segs.filter(s => s.k === "r").map(s => s.t).join("").trim();
+  const note = red.length > 0 && (NOTE_RX.test(red) || /^[※<\(\[]/.test(red));
+  for (const s of dp.segs) if (s.k === "r") s.k = note ? "m" : "k";
+  for (const h of p.getElementsByTagNameNS(W, "hyperlink")) {
+    const id = h.getAttributeNS(RNS, "id") || h.getAttribute("r:id") || "", target = rels[id];
+    if (!id || !target || !/^http/i.test(target)) continue;
+    let live = false;
+    for (const r of h.getElementsByTagNameNS(W, "r")) { const k = kind(kids(r, "rPr")[0], inTable, under(r, p, "del"), false); if (k !== "d" && k !== "m") live = true; }
+    if (live) m.links.push(target);
+  }
+  dp.index = m.paras.length; m.paras.push(dp);
+}
+function walk(parent, rels, m) {
+  for (const c of parent.children) {
+    if (c.localName === "p") readPara(c, false, rels, m);
+    else if (c.localName === "tbl") { for (const tr of kids(c, "tr")) for (const tc of kids(tr, "tc")) for (const p of tc.getElementsByTagNameNS(W, "p")) readPara(p, true, rels, m); }
+    else if (c.localName === "sdt") { const sc = kids(c, "sdtContent")[0]; if (sc) walk(sc, rels, m); }
+    else if (c.localName === "customXml") walk(c, rels, m);
+  }
+}
+async function loadDocx(file) {
+  if (!/\.docx$/i.test(file.name)) throw new Error(/\.doc$/i.test(file.name) ? ".doc 파일은 워드에서 .docx로 다시 저장한 뒤 넣어 주세요." : "워드(.docx) 원고만 넣을 수 있어요.");
+  const read = await unzip(await file.arrayBuffer());
+  const xml = await read("word/document.xml"); if (!xml) throw new Error("워드(.docx) 원고가 아니에요.");
+  const parse = s => new DOMParser().parseFromString(s, "application/xml");
+  const rels = {}, relXml = await read("word/_rels/document.xml.rels");
+  if (relXml) for (const r of parse(relXml).getElementsByTagName("Relationship")) rels[r.getAttribute("Id")] = r.getAttribute("Target");
+  const body = parse(xml).getElementsByTagNameNS(W, "body")[0]; if (!body) throw new Error("원고 내용을 찾지 못했어요.");
+  const m = { paras: [], links: [], placeholders: [] };
+  walk(body, rels, m);
+  for (const p of m.paras) { const t = Tx.clean(P.of(p, "k", "f", "s")); if (t.startsWith("※") && NOTE_RX.test(t)) for (const s of p.segs) if (s.k !== "d") s.k = "m"; }
+  for (const p of m.paras) for (const x of P.of(p, "k", "f", "s").matchAll(PH)) m.placeholders.push(Tx.clean(x[0]));
+  if (!m.paras.some(p => Tx.n2(P.of(p, "k", "f", "s", "d", "m")).length > 0)) throw new Error("원고에 글자가 없어요.");
+  return m;
+}
+
+// ───────────────────────── 인스타 캡션
+const TAG_RX = /#([\p{L}\p{M}\p{N}_]+)/gu;           // 인스타는 글자 · 숫자 · _ 까지만 태그로 친다 (이모지 · 문장부호에서 끝남)
+const MENTION_RX = /(?<![\w.%+\-@])@([A-Za-z0-9._]{1,30})/g;
+const URL_RX = /https?:\/\/[^\s<>"'|]+/gi;
+const noRefs = s => (s || "").replace(URL_RX, " ").replace(TAG_RX, " ").replace(MENTION_RX, " ");
+const tagKey = t => (t || "").toLowerCase().replace(/[\s#]/g, "");
+const uniqBy = (xs, key) => { const seen = new Set(); return xs.filter(x => { const k = key(x); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };
+function readCaption(text) {
+  const raw = (text || "").replace(/\r\n?/g, "\n");
+  const lines = raw.split("\n").map(Tx.clean).filter(x => x);
+  const tags = uniqBy([...raw.matchAll(TAG_RX)].map(x => x[1]), tagKey);
+  const mentions = uniqBy([...raw.matchAll(MENTION_RX)].map(x => x[1].replace(/\.+$/, "")), x => x.toLowerCase());
+  return { raw, lines, tags, mentions, allN2: Tx.n2(lines.join(" ")), length: [...raw.trim()].length, tagCount: [...raw.matchAll(TAG_RX)].length };
+}
+
+// ───────────────────────── 대조
+const trimUrl = u => (u || "").replace(/[.,)\]}>!?…]+$/, "");
+function urlKey(u) {
+  u = (u || "").trim().replace(/^[a-z]+:\/\//i, ""); if (/^www\./i.test(u)) u = u.slice(4);
+  const yt = u.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/i); if (yt) return "youtube:" + yt[1];
+  u = u.replace(/\/+$/, ""); const sl = u.indexOf("/"); return sl < 0 ? u.toLowerCase() : u.slice(0, sl).toLowerCase() + u.slice(sl);
+}
+const host = k => { const i = k.indexOf("/"); return i < 0 ? k : k.slice(0, i); };
+function hunks(post, doc) {
+  const a = Tx.words(post), b = Tx.words(doc), ka = a.map(Tx.n2), kb = b.map(Tx.n2), n = a.length, mm = b.length, res = [];
+  if (n * mm > 400000) return res;
+  const L = Array.from({ length: n + 1 }, () => new Int32Array(mm + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = mm - 1; j >= 0; j--) L[i][j] = ka[i] === kb[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  let x = 0, y = 0, cur = null;
+  while (x < n || y < mm) {
+    if (x < n && y < mm && ka[x] === kb[y]) { if (cur) { cur.a1 = x; cur.b1 = y; res.push(cur); cur = null; } x++; y++; }
+    else { if (!cur) cur = { a, b, a0: x, b0: y }; if (y >= mm || (x < n && L[x + 1][y] >= L[x][y + 1])) x++; else y++; }
+  }
+  if (cur) { cur.a1 = n; cur.b1 = mm; res.push(cur); }
+  for (const h of res) { h.aPart = a.slice(h.a0, h.a1).join(" "); h.bPart = b.slice(h.b0, h.b1).join(" "); }
+  // 캡션 쪽 앞뒤로 붙은 다른 문장, 띄어쓰기만 다른 부분은 뺀다
+  return res.filter(h => !(h.b0 === h.b1 && (h.b0 === 0 || h.b0 === mm)) && Tx.n2(h.aPart) !== Tx.n2(h.bPart));
+}
+function snip(h) {
+  const small = Tx.n2(h.aPart).length + Tx.n2(h.bPart).length, cb = small < 8 ? 2 : 1;
+  const a0 = Math.max(0, h.a0 - cb), b0 = Math.max(0, h.b0 - cb);
+  const aB = h.a.slice(a0, h.a0).join(" "), aA = h.a.slice(h.a1, h.a1 + 1).join(" "), bB = h.b.slice(b0, h.b0).join(" "), bA = h.b.slice(h.b1, h.b1 + 1).join(" ");
+  return "'" + Tx.j(aB, Tx.red(Tx.cut(h.aPart, 40)), aA) + "' → '" + Tx.j(bB, Tx.cut(h.bPart, 40), bA) + "'";
+}
+function markUrl(post, doc) {
+  let p = 0; while (p < post.length && p < doc.length && post[p] === doc[p]) p++;
+  let s = 0; while (s < post.length - p && s < doc.length - p && post[post.length - 1 - s] === doc[doc.length - 1 - s]) s++;
+  return post.length - p - s <= 0 ? post : post.slice(0, p) + Tx.red(post.slice(p, post.length - s)) + post.slice(post.length - s);
+}
+const DUP_OK = new Set("너무 정말 진짜 아주 많이 빨리 천천히 하나 계속 자꾸 다시 조금 살짝 반짝 차근 하하 호호 헤헤 히히 두근 콩닥 엉엉 냠냠 쑥쑥 쭉쭉 최고 짱".split(" "));
+const isBroken = c => (c >= "À" && c <= "ÿ" && c !== "×" && c !== "÷") || c === "�" || (c >= "" && c <= "");
+
+// 원고에만 있는 것 ↔ 캡션에만 있는 것을 가장 비슷한 쌍부터 짝짓는다 (비슷함 0.5 이상만 오타로 본다)
+function pairUp(miss, extra, key) {
+  const cand = [];
+  for (const d of miss) for (const e of extra) { const s = Tx.dice(key(e), key(d)); if (s >= 0.5) cand.push([s, d, e]); }
+  cand.sort((a, b) => b[0] - a[0]);
+  const out = new Map(), used = new Set();
+  for (const [, d, e] of cand) if (!out.has(d) && !used.has(e)) { out.set(d, e); used.add(e); }
+  return out;
+}
+function compare(m, cap) {
+  const fix = { body: [], link: [], tag: [], broken: [], limit: [] }, notes = [], done = new Set();
+  const note = s => { if (notes.length < 40 && !notes.includes(s)) notes.push(s); };
+  const inPost = t => { const n = Tx.n2(t); return n.length > 0 && cap.allN2.includes(n); };
+  const wins = [], winN = [], bare = cap.lines.map(noRefs);
+  for (let i = 0; i < bare.length; i++) for (let k = 1; k <= 3 && i + k <= bare.length; k++) { const t = Tx.clean(bare.slice(i, i + k).join(" ")); wins.push(t); winN.push(Tx.n2(t)); }
+  const best = doc => { const dn = Tx.n2(doc), bg = Tx.bigrams(dn); let score = 0, b = ""; for (let i = 0; i < wins.length; i++) { const s = Tx.sim(bg, dn.length, winN[i]); if (s > score + 1e-9) { score = s; b = wins[i]; } } return { best: b, score }; };
+  const ps = m.paras;
+  const wholeDel = d => P.has(d, "d") && Tx.n2(P.exp(d)).length === 0;
+  const fixRatio = d => { const all = Tx.n2(P.exp(d)).length; return all === 0 ? 0 : d.segs.filter(s => s.k === "f").reduce((a, s) => a + Tx.n2(s.t).length, 0) / all; };
+  const neighbor = (from, step) => { for (let i = from; i >= 0 && i < ps.length; i += step) { const x = ps[i]; if (Tx.n2(P.exp(x) + P.of(x, "d")).length > 0) return x; } return null; };
+
+  // 1) 문단째 지운 표시가 이어진 구간 먼저 (바로 앞뒤의 노란 문단이 대신 들어갈 문장)
+  for (let i = 0; i < ps.length;) {
+    if (!wholeDel(ps[i])) { i++; continue; }
+    let j = i; const left = [];
+    while (j < ps.length && (wholeDel(ps[j]) || Tx.n2(P.exp(ps[j]) + P.of(ps[j], "d")).length === 0)) { const dn = Tx.n2(P.of(ps[j], "d")); if (wholeDel(ps[j]) && dn.length >= 6 && cap.allN2.includes(dn)) left.push(ps[j]); done.add(j); j++; }
+    if (left.length) {
+      let rep = null; for (const nb of [neighbor(j, 1), neighbor(i - 1, -1)]) if (!rep && nb && !wholeDel(nb) && fixRatio(nb) >= 0.6 && !inPost(P.exp(nb))) rep = nb;
+      const first = Tx.red(Tx.cut(P.of(left[0], "d"), 60)), more = left.length > 1 ? " 외 " + (left.length - 1) + "문단" : "";
+      if (rep) { fix.body.push("수정 미반영: '" + first + "'" + more + " → '" + Tx.cut(P.exp(rep), 60) + "'"); done.add(rep.index); }
+      else fix.body.push("삭제 미반영: '" + first + "'" + more + " → 문단 삭제");
+    }
+    i = j;
+  }
+  // 2) 문장 안의 삭제 표시와 노란 수정 문구
+  for (const pa of ps) {
+    if (done.has(pa.index)) continue;
+    if (P.has(pa, "d")) partialDel(pa);
+    if (P.has(pa, "f") && !done.has(pa.index)) fixCheck(pa);
+  }
+  function partialDel(pa) {
+    const segs = pa.segs.filter(s => s.k !== "m");
+    for (let k = 0; k < segs.length; k++) {
+      if (segs[k].k !== "d") continue;
+      let e = k, D = ""; while (e < segs.length && segs[e].k === "d") { D += segs[e].t; e++; }
+      D = Tx.clean(D); const dn = Tx.n2(D), start = k; k = e - 1;
+      if (!dn) continue;
+      const before = stripPh(segs.slice(0, start).filter(s => s.k !== "d" && s.k !== "f").map(s => s.t).join(""));
+      const after = stripPh(segs.slice(e).filter(s => s.k !== "d" && s.k !== "f").map(s => s.t).join(""));
+      const bw = Tx.lastWords(before, 1), aw = Tx.firstWords(after, 2), probe = Tx.n2(bw + D + aw);
+      let left = probe.length > dn.length ? cap.allN2.includes(probe) : dn.length >= 6 && cap.allN2.includes(dn);
+      if (!left && dn.length >= 15 && cap.allN2.includes(dn)) left = true;
+      if (!left) continue;
+      let F = ""; for (let f = e; f < segs.length && segs[f].k === "f"; f++) F += segs[f].t;
+      if (!F) for (let g = start - 1; g >= 0 && segs[g].k === "f"; g--) F = segs[g].t + F;
+      F = Tx.clean(stripPh(F));
+      const shown = "'" + Tx.j(bw, Tx.red(Tx.cut(D, 50)), aw) + "'";
+      fix.body.push(F ? "수정 미반영: " + shown + " → '" + Tx.j(bw, F, aw) + "'" : "삭제 미반영: " + shown + " → '" + Tx.cut(D, 50) + "' 삭제");
+      done.add(pa.index);
+    }
+  }
+  function fixCheck(pa) {
+    const exp = Tx.clean(P.exp(pa)); if (!Tx.n2(exp) || inPost(exp)) return;
+    const segs = pa.segs.filter(s => s.k !== "m" && s.k !== "d");
+    for (let k = 0; k < segs.length; k++) {
+      if (segs[k].k !== "f") continue;
+      let e = k, F = ""; while (e < segs.length && segs[e].k === "f") { F += segs[e].t; e++; }
+      const start = k; k = e - 1; F = Tx.clean(stripPh(F)); const fn = Tx.n2(F);
+      if (fn.length < 2 || /^https?:\/\/\S+$/i.test(F)) continue;
+      const before = stripPh(segs.slice(0, start).map(s => s.t).join("")), after = stripPh(segs.slice(e).map(s => s.t).join(""));
+      if (cap.allN2.includes(Tx.n2(Tx.lastWords(before, 1) + F + Tx.firstWords(after, 1))) || (fn.length >= 12 && cap.allN2.includes(fn))) continue;
+      const sent = Tx.sentences(exp).find(x => Tx.n2(x).includes(fn)) || exp, b = best(sent);
+      done.add(pa.index);
+      if (b.score >= 0.5) {
+        const hs = hunks(b.best, sent), h = hs.find(x => { const bn = Tx.n2(x.bPart); return bn && (fn.includes(bn) || bn.includes(fn)); }) || hs[0];
+        if (h) { const typo = Tx.n2(h.aPart).length > 0 && Tx.lev(Tx.n2(h.aPart), Tx.n2(h.bPart)) <= 2; fix.body.push((typo ? "오타 수정 미반영: " : "수정 미반영: ") + snip(h)); return; }
+      }
+      note("수정 문구를 캡션에서 못 찾음: '" + Tx.cut(F, 40) + "'"); return;
+    }
+  }
+  // 해시태그 줄, 멘션 · 주소만 있는 줄은 문장 비교에서 뺀다
+  const skip = s => { const w = Tx.words(s); return !w.length || w.filter(x => x.startsWith("#") || x.startsWith("@")).length * 2 >= w.length || /^(https?:\/\/)?[\w.-]+\.(com|co\.kr|kr|net|org|me)(\/\S*)?$/i.test(s); };
+  for (const pa of ps) {
+    if (done.has(pa.index)) continue;
+    const exp = Tx.clean(P.exp(pa)); if (Tx.n2(exp).length < 6 || inPost(exp) || skip(exp)) continue;
+    for (const s0 of Tx.sentences(exp)) {
+      const s = Tx.clean(noRefs(s0));
+      const sn = Tx.n2(s); if (sn.length < 6 || cap.allN2.includes(sn) || skip(s)) continue;
+      const b = best(s);
+      if (b.score < 0.6) { note("원고 문장이 캡션에 없음 (영상 · 이미지에 넣었는지 확인): '" + Tx.cut(s, 45) + "'"); continue; }
+      const hs = hunks(b.best, s).filter(h => !(h.bPart.length === 0 && b.best.includes(h.aPart + " " + h.aPart))); if (!hs.length) continue;
+      const num = hs.find(h => /\d/.test(h.aPart) && /\d/.test(h.bPart));
+      if (num && b.score >= 0.75) fix.body.push("숫자 다름: " + snip(num));
+      else if (hs.length <= 2 && hs.every(h => Tx.n2(h.aPart).length + Tx.n2(h.bPart).length <= 12)) note("오타 의심: " + snip(hs[0]));
+      else note("문장이 원고와 다름: '" + Tx.cut(s, 45) + "'");
+    }
+  }
+  // 같은 단어 두 번
+  const docAll = ps.map(x => P.of(x, "k", "f", "s")).join(" ");
+  for (const l of cap.lines) for (const d of l.matchAll(/(?<![가-힣A-Za-z])([가-힣A-Za-z]{2,})\s+\1(?![가-힣A-Za-z])/g)) {
+    const w = d[1]; if (DUP_OK.has(w)) continue;
+    const bw = Tx.lastWords(l.slice(0, d.index), 1), aw = Tx.firstWords(l.slice(d.index + d[0].length), 2), msg = "'" + Tx.j(bw, w, Tx.red(w), aw) + "' → '" + w + "' 중복 삭제";
+    if (new RegExp(w + "\\s+" + w).test(docAll)) note("원고에도 있는 중복 단어: " + msg); else fix.body.push("오타: " + msg);
+  }
+  // 검수 메모 · 자리표시 문구가 남아 있는지
+  const seen = new Set();
+  for (const pa of ps) for (const s of Tx.sentences(P.of(pa, "m"))) { const n = Tx.n2(s); if (n.length >= 8 && !seen.has(n) && (seen.add(n), cap.allN2.includes(n))) fix.body.push("검수 메모가 캡션에 그대로 남아 있음: '" + Tx.red(Tx.cut(s, 40)) + "' → 삭제"); }
+  for (const ph of [...new Set(m.placeholders)]) { const n = Tx.n2(ph); if (n.length >= 4 && cap.allN2.includes(n)) fix.body.push("자리표시 문구가 남아 있음: '" + Tx.red(ph) + "' → 삭제"); }
+  // 링크
+  const docUrls = [];
+  for (const pa of ps) for (const u of P.of(pa, "k", "f", "s").matchAll(URL_RX)) docUrls.push(trimUrl(u[0]));
+  docUrls.push(...m.links);
+  const postUrls = []; for (const l of cap.lines) for (const u of l.matchAll(URL_RX)) postUrls.push(trimUrl(u[0]));
+  const keys = new Set(postUrls.map(urlKey)), seenU = new Set();
+  for (const du of docUrls) {
+    const k = urlKey(du); if (k.length < 4 || seenU.has(k) || keys.has(k)) { seenU.add(k); continue; } seenU.add(k);
+    const same = [...new Set(postUrls.filter(x => host(urlKey(x)) === host(k)))];
+    if (same.length) { const pu = same.sort((a, b) => Tx.dice(b, du) - Tx.dice(a, du))[0]; fix.link.push("링크 주소 다름: '" + markUrl(pu, du) + "' → '" + du + "'"); }
+    else fix.link.push("링크 누락: '" + du + "' (프로필 링크로 넣었다면 무시)");
+  }
+  // 해시태그
+  const docTags = uniqBy(ps.flatMap(pa => [...P.of(pa, "k", "f", "s").matchAll(TAG_RX)].map(x => x[1])), tagKey);
+  if (docTags.length) {
+    if (!cap.tags.length) fix.tag.push("해시태그 없음 (원고 해시태그 " + docTags.length + "개)");
+    else {
+      const pk = new Set(cap.tags.map(tagKey)), dk = new Set(docTags.map(tagKey));
+      const extra = cap.tags.filter(t => !dk.has(tagKey(t))), miss = docTags.filter(x => !pk.has(tagKey(x)));
+      const pairs = pairUp(miss, extra, tagKey);
+      for (const d of miss) { const b = pairs.get(d); fix.tag.push(b ? "해시태그 오타: '" + Tx.red("#" + b) + "' → '#" + d + "'" : "해시태그 누락: '#" + d + "'"); }
+      const used = new Set(pairs.values()), rest = extra.filter(x => !used.has(x));
+      if (rest.length) note("원고에 없는 해시태그: " + rest.map(x => "#" + x).join(" "));
+    }
+  }
+  // @멘션
+  const docMentions = uniqBy(ps.flatMap(pa => [...P.of(pa, "k", "f", "s").matchAll(MENTION_RX)].map(x => x[1].replace(/\.+$/, ""))), x => x.toLowerCase());
+  if (docMentions.length) {
+    const pk = new Set(cap.mentions.map(x => x.toLowerCase())), dk = new Set(docMentions.map(x => x.toLowerCase()));
+    const extra = cap.mentions.filter(x => !dk.has(x.toLowerCase())), miss = docMentions.filter(x => !pk.has(x.toLowerCase()));
+    const pairs = pairUp(miss, extra, x => x.toLowerCase());
+    for (const d of miss) { const b = pairs.get(d); fix.tag.push(b ? "멘션 오타: '" + Tx.red("@" + b) + "' → '@" + d + "'" : "멘션 누락: '@" + d + "'"); }
+    const used = new Set(pairs.values()), rest = extra.filter(x => !used.has(x));
+    if (rest.length) note("원고에 없는 멘션: " + rest.map(x => "@" + x).join(" "));
+  }
+  // 깨진 글자
+  const docRaw = ps.map(x => P.of(x, "k", "f", "s", "d", "m")).join(""), hits = new Map();
+  for (const l of cap.lines) for (const ch of l) if (isBroken(ch) && !docRaw.includes(ch)) { if (!hits.has(ch)) hits.set(ch, []); hits.get(ch).push(l); }
+  for (const [ch, ls] of hits) {
+    const ex = Tx.cut(ls[0], 30), arrow = "àè".includes(ch) ? "→" : ch === "ß" ? "←" : ch === "á" ? "↑" : ch === "â" ? "↓" : null;
+    fix.broken.push(arrow ? "화살표 " + ls.length + "곳이 '" + Tx.red(ch) + "'로 깨짐 (예: '" + ex + "') → '" + arrow + "'로 수정" : "깨진 문자 '" + Tx.red(ch) + "' " + ls.length + "곳 (예: '" + ex + "') → 원고대로 수정");
+  }
+  // 인스타 한도
+  if (cap.length > 2200) fix.limit.push("캡션 " + cap.length.toLocaleString() + "자 → 인스타 한도 2,200자 초과");
+  if (cap.tagCount > 30) fix.limit.push("해시태그 " + cap.tagCount + "개 → 인스타 한도 30개 초과");
+  const all = []; for (const l of [fix.body, fix.link, fix.tag, fix.broken, fix.limit]) for (const x of l) if (!all.includes(x)) all.push(x);
+  return { fix: all, notes };
+}
+const summary = fix => fix.length === 0 ? "이상 없음" : fix.length === 1 ? fix[0] : fix.map((x, i) => Tx.circled(i) + " " + x).join("\n");
+
+// ───────────────────────── 엑셀(.xlsx): 원고검수기와 같은 양식 (B2부터 순서 | 이름 | URL | 수정사항)
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = u8 => { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zip(entries) {
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  for (const [name, text] of entries) {
+    const nb = enc.encode(name), data = enc.encode(text), crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30)); h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, nb.length, true);
+    parts.push(new Uint8Array(h.buffer), nb, data);
+    const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nb.length, true); c.setUint32(42, off, true);
+    cen.push(new Uint8Array(c.buffer), nb); off += 30 + nb.length + data.length;
+  }
+  const size = cen.reduce((a, x) => a + x.length, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, entries.length, true); e.setUint16(10, entries.length, true); e.setUint32(12, size, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...cen, new Uint8Array(e.buffer)]);
+}
+const esc = s => [...(s || "")].filter(c => c >= " " || c === "\n" || c === "\t").join("").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const units = s => [...(s || "")].reduce((a, c) => a + (c.charCodeAt(0) >= 0x1100 ? 2 : 1), 0);
+const f2 = d => String(Math.round(d * 100) / 100);
+function rich(marked) {
+  let out = "<is>", red = false, cur = "", any = false;
+  const flush = () => { if (!cur) return; any = true; out += '<r><rPr><sz val="9"/><color rgb="' + (red ? "FFFF0000" : "FF000000") + '"/><rFont val="맑은 고딕"/><family val="3"/><charset val="129"/></rPr><t xml:space="preserve">' + esc(cur) + "</t></r>"; cur = ""; };
+  for (const c of (marked || "").replace(/\r\n/g, "\n")) { if (c === RO) { flush(); red = true; } else if (c === RC) { flush(); red = false; } else cur += c; }
+  flush(); if (!any) out += "<t></t>"; return out + "</is>";
+}
+const str = s => '<is><t xml:space="preserve">' + esc(s) + "</t></is>";
+function height(text) { let lines = 0; for (const l of Tx.plain(text).split("\n")) lines += Math.max(1, Math.ceil(units(l) / 100)); return lines <= 1 ? 16.5 : 12 * lines; }
+const safeSheet = s => { s = (s || "").replace(/[\[\]:*?\/\\]/g, "-"); return s.length > 31 ? s.slice(0, 31) : (s || "Sheet1"); };
+function buildXlsx(sheetName, rows) {
+  const NM = "http://schemas.openxmlformats.org/spreadsheetml/2006/main", NR = "http://schemas.openxmlformats.org/officeDocument/2006/relationships", PR = "http://schemas.openxmlformats.org/package/2006/relationships";
+  const head = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', last = 2 + rows.length;
+  const wC = Math.max(5.38, Math.max(0, ...rows.map(r => units(r.name))) * 0.85 + 0.6), wD = Math.max(30, Math.max(0, ...rows.map(r => (r.url || "").length)) * 0.84 + 0.5);
+  let sh = head + '<worksheet xmlns="' + NM + '" xmlns:r="' + NR + '"><dimension ref="B2:E' + last + '"/><sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="16.5"/>'
+    + '<cols><col min="2" max="2" width="3.88" customWidth="1"/><col min="3" max="3" width="' + f2(wC) + '" customWidth="1"/><col min="4" max="4" width="' + f2(wD) + '" customWidth="1"/><col min="5" max="5" width="86" customWidth="1"/></cols><sheetData>'
+    + '<row r="2" spans="2:5" ht="16.5" customHeight="1">' + ["순서", "이름", "URL", "수정사항"].map((h, i) => '<c r="' + "BCDE"[i] + '2" s="1" t="inlineStr">' + str(h) + "</c>").join("") + "</row>";
+  const links = [];
+  rows.forEach((x, i) => {
+    const r = 3 + i, plain = Tx.clean(Tx.plain(x.text)), bad = plain.length > 0 && plain !== "이상 없음";
+    sh += '<row r="' + r + '" spans="2:5" ht="' + f2(height(x.text)) + '" customHeight="1"><c r="B' + r + '" s="2"><v>' + (i + 1) + "</v></c>"
+      + '<c r="C' + r + '" s="' + (bad ? 3 : 2) + '" t="inlineStr">' + str(x.name) + '</c><c r="D' + r + '" s="4" t="inlineStr">' + str(x.url) + "</c>"
+      + '<c r="E' + r + '" s="5" t="inlineStr">' + rich(x.text) + "</c></row>";
+    if (x.url) links.push([r, x.url]);
+  });
+  sh += "</sheetData>";
+  if (links.length) sh += "<hyperlinks>" + links.map(([r], k) => '<hyperlink ref="D' + r + '" r:id="rId' + (k + 1) + '"/>').join("") + "</hyperlinks>";
+  sh += '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>';
+  const font = '<name val="맑은 고딕"/><family val="3"/><charset val="129"/>', border = '<border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border>', al = '<alignment horizontal="left" vertical="center"/>';
+  const styles = head + '<styleSheet xmlns="' + NM + '"><fonts count="4"><font><sz val="11"/>' + font + '</font><font><b/><sz val="9"/><color rgb="FFFFFFFF"/>' + font + '</font><font><sz val="9"/><color rgb="FF000000"/>' + font + '</font><font><u/><sz val="9"/><color rgb="FF467886"/>' + font + "</font></fonts>"
+    + '<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF000000"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFF5050"/><bgColor indexed="64"/></patternFill></fill></fills>'
+    + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' + border + '</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    + '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' + al + "</xf>"
+    + '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">' + al + "</xf>"
+    + '<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' + al + "</xf>"
+    + '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">' + al + "</xf>"
+    + '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="표준" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  const entries = [
+    ["[Content_Types].xml", head + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
+    ["_rels/.rels", head + '<Relationships xmlns="' + PR + '"><Relationship Id="rId1" Type="' + NR + '/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ["xl/workbook.xml", head + '<workbook xmlns="' + NM + '" xmlns:r="' + NR + '"><bookViews><workbookView activeTab="0"/></bookViews><sheets><sheet name="' + esc(safeSheet(sheetName)) + '" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ["xl/_rels/workbook.xml.rels", head + '<Relationships xmlns="' + PR + '"><Relationship Id="rId1" Type="' + NR + '/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="' + NR + '/styles" Target="styles.xml"/></Relationships>'],
+    ["xl/styles.xml", styles],
+    ["xl/worksheets/sheet1.xml", sh],
+  ];
+  if (links.length) entries.push(["xl/worksheets/_rels/sheet1.xml.rels", head + '<Relationships xmlns="' + PR + '">' + links.map(([, u], k) => '<Relationship Id="rId' + (k + 1) + '" Type="' + NR + '/hyperlink" Target="' + esc(u) + '" TargetMode="External"/>').join("") + "</Relationships>"]);
+  return zip(entries);
+}
+
+// ───────────────────────── 상태
+const $ = id => document.getElementById(id);
+const STORE = "insta-wongo-v1";
+let rows = [], selId = null, nextId = 1, saveTimer = null;
+const today = new Date(), yymmdd = String(today.getFullYear() % 100).padStart(2, "0") + String(today.getMonth() + 1).padStart(2, "0") + String(today.getDate()).padStart(2, "0");
+const defaultSheet = (today.getFullYear() % 100) + "." + (today.getMonth() + 1) + "." + today.getDate();
+const newRow = (o = {}) => Object.assign({ id: nextId++, name: "", autoName: "", docName: "", ms: null, link: "", caption: "", res: null, final: null, state: "대기", err: "" }, o);
+const sel = () => rows.find(r => r.id === selId) || null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ rows: rows.filter(r => !r.example), sheet: $("sheetName").value })); } catch (e) { /* 저장 못 해도 화면은 그대로 */ } }, 300);
+}
+function load() {
+  let data = null; try { data = JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) { data = null; }
+  if (data && Array.isArray(data.rows) && data.rows.length) { rows = data.rows.map(r => newRow(r)); rows.forEach(r => r.id = nextId++); if (data.sheet) $("sheetName").value = data.sheet; }
+  else rows = exampleRows();
+  if (!$("sheetName").value) $("sheetName").value = defaultSheet;
+  selId = rows[0] ? rows[0].id : null;
+}
+function exampleRows() {
+  const seg = (k, t) => ({ k, t });
+  const ms = { links: ["https://example.com/event"], placeholders: [], paras: [
+    { segs: [seg("k", "가을 피크닉엔 역시 "), seg("d", "사이다"), seg("f", "칠성사이다"), seg("k", " 한 잔이죠!")] },
+    { segs: [seg("m", "※ 제품 로고가 잘 보이게 촬영 부탁드려요")] },
+    { segs: [seg("k", "김밥이랑 같이 마시면 탄산이 입안을 깔끔하게 정리해 줘요.")] },
+    { segs: [seg("k", "이벤트 기간은 10월 31일까지예요.")] },
+    { segs: [seg("k", "@example_brand 에서 이벤트 확인하기")] },
+    { segs: [seg("k", "#광고 #칠성사이다 #김밥엔칠성사이다 #가을피크닉")] },
+  ].map((p, i) => Object.assign(p, { inTable: false, index: i })) };
+  const good = "가을 피크닉엔 역시 칠성사이다 한 잔이죠! 🥤\n김밥이랑 같이 마시면 탄산이 입안을 깔끔하게 정리해 줘요.\n이벤트 기간은 10월 31일까지예요.\n@example_brand 에서 이벤트 확인하기 https://example.com/event\n\n#광고 #칠성사이다 #김밥엔칠성사이다 #가을피크닉";
+  const bad = "가을 피크닉엔 역시 사이다 한 잔이죠! 🥤\n김밥이랑 같이 마시면 탄산이 입안을 깔끔하게 정리해 줘요.\n이벤트 기간은 10월 30일까지예요.\n@example_brand 에서 이벤트 확인하기 https://example.com/event\n\n#광고 #칠성사이다 #김밥엔칠성사이댜 #가을피크닉";
+  const mk = (name, caption, code) => { const r = newRow({ example: true, name, autoName: name, docName: "10월 캠페인 인스타 원고_" + name + "_검수.docx", ms, link: "https://www.instagram.com/p/" + code + "/", caption }); runRow(r); return r; };
+  return [mk("예시 계정 A", bad, "EXAMPLE001"), mk("예시 계정 B", good, "EXAMPLE002")];
+}
+
+// ───────────────────────── 검수 실행
+function runRow(r) {
+  if (!r.ms || !Tx.clean(r.caption)) { r.res = null; r.final = null; r.state = "대기"; r.err = ""; return; }
+  try { r.res = compare(r.ms, readCaption(r.caption)); r.final = summary(r.res.fix); r.state = r.res.fix.length ? "불일치" : "일치"; r.err = ""; }
+  catch (e) { r.res = null; r.final = null; r.state = "오류"; r.err = String(e && e.message || e); }
+}
+const stateOf = r => r.final == null ? r.state : (Tx.clean(Tx.plain(r.final)) === "이상 없음" ? "일치" : "불일치");
+
+// ───────────────────────── 화면
+function toast(msg, ms = 2600) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms); }
+function capSummary(r) { if (!Tx.clean(r.caption)) return null; const c = readCaption(r.caption); return c.length.toLocaleString() + "자 · 태그 " + c.tagCount; }
+function renderRows() {
+  const box = $("rows"); box.textContent = "";
+  rows.forEach((r, i) => {
+    const el = document.createElement("div"); el.className = "row grid" + (r.id === selId ? " sel" : ""); el.dataset.id = r.id;
+    const st = stateOf(r), cls = st === "일치" ? "ok" : st === "불일치" ? "bad" : st === "오류" ? "err" : "";
+    const cs = capSummary(r);
+    el.innerHTML =
+      '<span class="no">' + (i + 1) + "</span>" +
+      '<span class="name-cell"><input type="text" aria-label="이름" placeholder="이름" id="name-' + r.id + '">' + (r.example ? '<span class="pill ex">예시</span>' : "") + "</span>" +
+      '<span class="doc-cell"><button class="file-btn">파일 넣기</button><span class="doc-name"></span></span>' +
+      '<span class="link-cell"><input type="text" aria-label="인스타 링크" placeholder="https://www.instagram.com/p/…" id="link-' + r.id + '"></span>' +
+      '<span class="cap-cell"><button class="cap-btn ' + (cs ? "filled" : "empty") + '">' + (cs || "캡션 붙여넣기") + "</button></span>" +
+      '<span class="chk-cell"><button class="btn-ink chk">검수하기</button><span class="pill mini ' + cls + '">' + st + "</span></span>" +
+      '<span class="badge-cell"><span class="pill ' + cls + '" title="' + (r.err || "") + '">' + st + "</span></span>" +
+      '<span class="del-cell"><button class="del" aria-label="' + (i + 1) + '번 행 지우기">×</button></span>';
+    el.querySelector("input[aria-label=이름]").value = r.name;
+    el.querySelector("input[aria-label='인스타 링크']").value = r.link;
+    const dn = el.querySelector(".doc-name"); dn.textContent = r.docName || "원고를 끌어다 놓아도 돼요"; dn.classList.toggle("empty", !r.docName); dn.title = r.docName;
+    box.appendChild(el);
+  });
+  const ok = rows.filter(r => stateOf(r) === "일치").length, bad = rows.filter(r => stateOf(r) === "불일치").length;
+  $("cAll").textContent = "총 " + rows.length; $("cOk").textContent = "일치 " + ok; $("cBad").textContent = "불일치 " + bad;
+  $("exampleNote").hidden = !rows.some(r => r.example);
+  $("status").textContent = "원고 " + rows.filter(r => r.ms).length + "개 · 캡션 " + rows.filter(r => Tx.clean(r.caption)).length + "개";
+}
+function renderDetail() {
+  const r = sel(), cap = $("caption"), fin = $("final");
+  cap.disabled = !r; fin.contentEditable = r ? "true" : "false";
+  if (!r) { cap.value = ""; fin.textContent = ""; $("capMeta").textContent = "행을 고르세요"; $("finalMeta").textContent = ""; renderNotes(null); $("openPost").removeAttribute("href"); return; }
+  if (cap.value !== r.caption) cap.value = r.caption;
+  const no = rows.indexOf(r) + 1;
+  $("capMeta").textContent = no + "번 · " + (r.name || "이름 없음");
+  $("finalMeta").textContent = r.err ? "오류: " + r.err : !r.ms ? "원고를 넣어 주세요" : !Tx.clean(r.caption) ? "캡션을 붙여넣어 주세요" : r.docName;
+  setFinal(r.final || "");
+  renderNotes(r); renderStats(r);
+  const link = Tx.clean(r.link); if (/^https?:\/\//i.test(link)) $("openPost").href = link; else $("openPost").removeAttribute("href");
+}
+function renderStats(r) {
+  const c = readCaption(r ? r.caption : "");
+  $("capStats").innerHTML = '<span class="' + (c.length > 2200 ? "over" : "") + '">' + c.length.toLocaleString() + " / 2,200자</span> · " +
+    '<span class="' + (c.tagCount > 30 ? "over" : "") + '">해시태그 ' + c.tagCount + " / 30개</span> · 멘션 " + c.mentions.length + "개";
+}
+function renderNotes(r) {
+  const ul = $("notes"); ul.textContent = "";
+  const items = r && r.res ? r.res.notes : [];
+  if (!items.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = r && r.res ? "참고할 차이 없음" : "확실하지 않은 차이가 여기에 나와요."; ul.appendChild(li); return; }
+  for (const n of items) { const li = document.createElement("li"); li.tabIndex = 0; li.innerHTML = '<span class="add">+ 추가</span>'; li.appendChild(markedNodes(n)); li.dataset.raw = n; ul.appendChild(li); }
+}
+function markedNodes(s) {
+  const f = document.createDocumentFragment(); let red = false, cur = "";
+  const flush = () => { if (!cur) return; if (red) { const sp = document.createElement("span"); sp.className = "r"; sp.textContent = cur; f.appendChild(sp); } else f.appendChild(document.createTextNode(cur)); cur = ""; };
+  for (const c of s) { if (c === RO) { flush(); red = true; } else if (c === RC) { flush(); red = false; } else cur += c; }
+  flush(); return f;
+}
+function setFinal(marked) {
+  const fin = $("final"); fin.textContent = "";
+  marked.split("\n").forEach((line, i) => { if (i) fin.appendChild(document.createElement("br")); fin.appendChild(markedNodes(line)); });
+}
+// 수정사항 칸 → 빨간 표시가 들어간 글
+const isRedColor = c => { c = (c || "").replace(/\s/g, "").toLowerCase(); return ["#e60000", "#ff0000", "red", "rgb(230,0,0)", "rgb(255,0,0)"].includes(c); };
+function readFinal() {
+  let out = "";
+  const visit = (node, red) => {
+    for (const n of node.childNodes) {
+      if (n.nodeType === 3) { if (n.data) out += red ? RO + n.data + RC : n.data; continue; }
+      if (n.nodeType !== 1) continue;
+      if (n.tagName === "BR") { out += "\n"; continue; }
+      const block = n.tagName === "DIV" || n.tagName === "P";
+      if (block && out && !out.endsWith("\n")) out += "\n";
+      let r = red;
+      if (n.classList.contains("r")) r = true;
+      const col = n.getAttribute("color") || n.style.color; if (col) r = isRedColor(col);
+      visit(n, r);
+    }
+  };
+  visit($("final"), false);
+  return out.split(RC + RO).join("").replace(/ /g, " ").replace(/\n+$/, "");
+}
+function syncFinal() { const r = sel(); if (!r) return; r.final = readFinal(); if (!Tx.clean(Tx.plain(r.final))) r.final = r.res ? "" : null; renderRows(); save(); }
+
+// ───────────────────────── 원고 넣기 · 링크 나누기
+async function addFiles(files, startRow) {
+  files = [...files].filter(f => /\.docx?$/i.test(f.name));
+  if (!files.length) { toast("워드(.docx) 원고만 넣을 수 있어요."); return; }
+  if (rows.some(r => r.example)) { rows = rows.filter(r => !r.example); selId = null; }
+  let target = startRow ? rows.indexOf(startRow) : -1, lastRow = null, fails = [];
+  for (const f of files) {
+    let r;
+    if (target >= 0) { r = rows[target]; target = -1; }
+    else { r = rows.find(x => !x.ms && !x.docName); if (!r) { r = newRow(); rows.push(r); } }
+    try {
+      r.ms = await loadDocx(f); r.docName = f.name; r.err = "";
+      const auto = nameFromFile(f.name); if (!r.name || r.name === r.autoName) r.name = auto; r.autoName = auto;
+      runRow(r);
+    } catch (e) { r.ms = null; r.docName = f.name; r.err = e.message || String(e); r.state = "오류"; fails.push(f.name); }
+    lastRow = r;
+  }
+  if (!selId || !sel()) selId = (lastRow || rows[0] || {}).id || null;
+  renderRows(); renderDetail(); save();
+  toast(fails.length ? fails.length + "개는 읽지 못했어요: " + (lastRow.err || "") : "원고 " + files.length + "개를 넣었어요." + (files.length > 1 ? " 이제 행마다 캡션을 붙여넣으세요." : ""));
+}
+const IG_RX = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/[^\s<>"']+|https?:\/\/[^\s<>"']+/gi;
+function splitLinks(text, fromRow) {
+  const links = (text.match(IG_RX) || []).map(trimUrl);
+  if (links.length < 2) return false;
+  if (rows.some(r => r.example)) { rows = rows.filter(r => !r.example); fromRow = null; }
+  let i = fromRow ? rows.indexOf(fromRow) : rows.findIndex(r => !Tx.clean(r.link)); if (i < 0) i = rows.length;
+  for (const l of links) { if (i >= rows.length) rows.push(newRow()); rows[i].link = /^https?:/i.test(l) ? l : "https://" + l; i++; }
+  if (!sel()) selId = rows[0].id;
+  renderRows(); renderDetail(); save(); toast("링크 " + links.length + "개를 나눠 넣었어요.");
+  return true;
+}
+
+// ───────────────────────── 이벤트
+$("rows").addEventListener("click", e => {
+  const rowEl = e.target.closest(".row"); if (!rowEl) return;
+  const r = rows.find(x => x.id === +rowEl.dataset.id); if (!r) return;
+  if (e.target.closest(".del")) {
+    rows = rows.filter(x => x !== r); if (selId === r.id) selId = rows[0] ? rows[0].id : null;
+    renderRows(); renderDetail(); save(); return;
+  }
+  if (e.target.closest(".file-btn")) { $("fileInput").dataset.row = r.id; $("fileInput").click(); }
+  if (e.target.closest(".chk")) {
+    if (!r.ms) toast("원고(.docx)를 먼저 넣어 주세요."); else if (!Tx.clean(r.caption)) toast("아래 캡션 칸에 인스타 캡션을 붙여넣어 주세요.");
+    runRow(r);
+  }
+  if (selId !== r.id) { selId = r.id; renderRows(); renderDetail(); }
+  else if (e.target.closest(".chk")) { renderRows(); renderDetail(); save(); }
+  if (e.target.closest(".cap-btn")) $("caption").focus();
+  else if (e.target.tagName === "INPUT") { const inp = $(e.target.id); if (inp) inp.focus(); }
+});
+$("rows").addEventListener("focusin", e => {
+  const rowEl = e.target.closest(".row"); if (!rowEl || e.target.tagName !== "INPUT") return;
+  const id = +rowEl.dataset.id; if (selId === id) return;
+  selId = id; document.querySelectorAll(".row").forEach(x => x.classList.toggle("sel", +x.dataset.id === id)); renderDetail();
+});
+$("rows").addEventListener("input", e => {
+  const rowEl = e.target.closest(".row"); if (!rowEl) return; const r = rows.find(x => x.id === +rowEl.dataset.id); if (!r) return;
+  if (e.target.id.startsWith("name-")) { r.name = e.target.value; $("capMeta").textContent = (rows.indexOf(r) + 1) + "번 · " + (r.name || "이름 없음"); }
+  if (e.target.id.startsWith("link-")) { r.link = e.target.value; if (r === sel()) renderDetail(); }
+  save();
+});
+$("rows").addEventListener("paste", e => {
+  if (!e.target.id || !e.target.id.startsWith("link-")) return;
+  const text = (e.clipboardData || window.clipboardData).getData("text");
+  const r = rows.find(x => x.id === +e.target.closest(".row").dataset.id);
+  if (splitLinks(text, r)) e.preventDefault();
+});
+$("fileInput").addEventListener("change", async e => {
+  const id = +e.target.dataset.row; e.target.dataset.row = "";
+  const files = [...e.target.files]; e.target.value = "";
+  if (files.length) await addFiles(files, files.length === 1 ? rows.find(r => r.id === id) : null);
+});
+let capTimer = null;
+$("caption").addEventListener("input", () => {
+  const r = sel(); if (!r) return; r.caption = $("caption").value; renderStats(r);
+  clearTimeout(capTimer); capTimer = setTimeout(() => { runRow(r); renderRows(); renderDetail(); save(); }, 350);
+});
+$("final").addEventListener("input", syncFinal);
+$("final").addEventListener("blur", syncFinal);
+function paint(color) {
+  const s = window.getSelection(); if (!s || s.isCollapsed || !$("final").contains(s.anchorNode)) { toast("수정사항에서 바꿀 글자를 드래그한 뒤 눌러 주세요."); return; }
+  document.execCommand("styleWithCSS", false, false); document.execCommand("foreColor", false, color); syncFinal();
+}
+$("mkRed").addEventListener("mousedown", e => e.preventDefault());
+$("mkBlack").addEventListener("mousedown", e => e.preventDefault());
+$("mkRed").addEventListener("click", () => paint("#e60000"));
+$("mkBlack").addEventListener("click", () => paint("#1e1e20"));
+$("mkOk").addEventListener("click", () => { const r = sel(); if (!r) return; r.final = "이상 없음"; setFinal(r.final); renderRows(); save(); });
+function addNote(raw) {
+  const r = sel(); if (!r) return;
+  const cur = r.final == null ? "" : r.final, curPlain = Tx.clean(Tx.plain(cur));
+  let items;
+  if (!curPlain || curPlain === "이상 없음") items = [];
+  else { const ls = cur.split("\n").filter(l => Tx.clean(Tx.plain(l))); items = ls.length > 1 || /^[①-⑳(]/.test(ls[0]) ? ls.map(l => l.replace(/^([①-⑳]|\(\d+\))\s*/, "")) : [cur]; }
+  items.push(raw);
+  r.final = items.length === 1 ? items[0] : items.map((x, i) => Tx.circled(i) + " " + x).join("\n");
+  setFinal(r.final); renderRows(); save(); toast("수정사항에 추가했어요.");
+}
+$("notes").addEventListener("click", e => { const li = e.target.closest("li[data-raw]"); if (li) addNote(li.dataset.raw); });
+$("notes").addEventListener("keydown", e => { const li = e.target.closest("li[data-raw]"); if (li && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); addNote(li.dataset.raw); } });
+$("addRow").addEventListener("click", () => { if (rows.some(r => r.example)) rows = rows.filter(r => !r.example); const r = newRow(); rows.push(r); selId = r.id; renderRows(); renderDetail(); save(); $("name-" + r.id).focus(); });
+$("addFiles").addEventListener("click", () => { $("fileInput").dataset.row = ""; $("fileInput").click(); });
+$("pasteLinks").addEventListener("click", () => {
+  if (rows.some(r => r.example)) { rows = rows.filter(r => !r.example); }
+  let r = rows.find(x => !Tx.clean(x.link)); if (!r) { r = newRow(); rows.push(r); }
+  selId = r.id; renderRows(); renderDetail(); $("link-" + r.id).focus();
+  toast("링크 여러 줄을 복사해 이 칸에 붙여넣으세요 (Ctrl+V).", 3600);
+});
+function restoreClear() { const box = $("clearBox"); const btn = document.createElement("button"); btn.className = "btn-text"; btn.id = "clearAll"; btn.textContent = "모두 비우기"; box.textContent = ""; box.appendChild(btn); btn.addEventListener("click", clearClick); }
+const clearClick = () => {
+  const box = $("clearBox"); box.innerHTML = '<span class="confirm"><span class="stats">모든 행을 지울까요?</span><button class="btn-text" id="clearYes" style="color:var(--bad)">지우기</button><button class="btn-text" id="clearNo" style="color:var(--muted)">취소</button></span>';
+  $("clearNo").onclick = restoreClear;
+  $("clearYes").onclick = () => { rows = [newRow()]; selId = rows[0].id; renderRows(); renderDetail(); save(); restoreClear(); toast("모두 비웠어요."); };
+};
+restoreClear();
+$("clearEx").addEventListener("click", () => { rows = rows.filter(r => !r.example); if (!rows.length) rows = [newRow()]; selId = rows[0].id; renderRows(); renderDetail(); save(); });
+$("runAll").addEventListener("click", () => {
+  const ready = rows.filter(r => r.ms && Tx.clean(r.caption)); ready.forEach(runRow);
+  renderRows(); renderDetail(); save();
+  const miss = rows.filter(r => !(r.ms && Tx.clean(r.caption))).length;
+  toast(ready.length + "건 검수했어요." + (miss ? " 원고나 캡션이 빠진 행 " + miss + "개는 건너뛰었어요." : ""));
+});
+$("sheetName").addEventListener("input", save);
+$("helpBtn").addEventListener("click", () => { const h = $("help"); h.hidden = !h.hidden; $("helpBtn").setAttribute("aria-expanded", String(!h.hidden)); try { localStorage.setItem(STORE + "-help", h.hidden ? "0" : "1"); } catch (e) {} });
+$("export").addEventListener("click", async () => {
+  if (document.activeElement === $("final")) syncFinal();
+  const done = rows.filter(r => r.final != null && Tx.clean(Tx.plain(r.final)));
+  if (!done.length) { toast("저장할 검수 결과가 없어요. 원고를 넣고 캡션을 붙여넣어 주세요."); return; }
+  const waiting = rows.filter(r => r.final == null && (r.ms || Tx.clean(r.caption))).length;
+  const blob = buildXlsx($("sheetName").value || defaultSheet, done.map(r => ({ name: Tx.clean(r.name), url: Tx.clean(r.link), text: r.final })));
+  const first = done.find(r => r.docName); let stem = first ? first.docName.replace(/\.[^.]+$/, "").split("_")[0].trim() : "";
+  stem = stem.includes("원고") ? stem.replace("원고", "검수") : "인스타 원고 검수";
+  const filename = stem + "_" + yymmdd + ".xlsx", tail = waiting ? " (원고나 캡션이 빠진 " + waiting + "행 제외)" : "";
+  let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) { dl = null; }
+  if (dl) {
+    try { await dl.save({ filename, data: blob }); toast(done.length + "건을 저장했어요." + tail); }
+    catch (e) { toast(e && e.code === "declined" ? "저장을 취소했어요." : "저장하지 못했어요. 잠시 뒤 다시 눌러 주세요."); }
+    return;
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  toast(done.length + "건을 " + filename + "로 저장했어요." + tail);
+});
+// 끌어다 놓기
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+window.addEventListener("dragenter", e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; $("drop").hidden = false; });
+window.addEventListener("dragover", e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener("dragleave", e => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $("drop").hidden = true; });
+window.addEventListener("drop", e => {
+  if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; $("drop").hidden = true;
+  const rowEl = e.target.closest && e.target.closest(".row"), files = e.dataTransfer.files;
+  addFiles(files, rowEl && files.length === 1 ? rows.find(r => r.id === +rowEl.dataset.id) : null);
+});
+
+load();
+try { if (localStorage.getItem(STORE + "-help") === "1") { $("help").hidden = false; $("helpBtn").setAttribute("aria-expanded", "true"); } } catch (e) {}
+renderRows(); renderDetail();
+</script>
